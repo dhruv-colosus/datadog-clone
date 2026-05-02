@@ -7,12 +7,12 @@ export default function SignUpPage() {
     <Box
       sx={{
         minHeight: "100dvh",
+        bgcolor: "#f7f8fa",
         display: "flex",
-        alignItems: "center",
+        alignItems: { xs: "flex-start", md: "center" },
         justifyContent: "center",
-        px: { xs: 2, sm: 3 },
-        py: { xs: 4, sm: 6 },
-        bgcolor: "background.default",
+        px: { xs: 2, sm: 3, md: 6 },
+        py: { xs: 4, md: 6 },
       }}
     >
       <SignUpCard />

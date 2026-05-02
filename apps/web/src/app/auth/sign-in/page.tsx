@@ -7,12 +7,11 @@ export default function SignInPage() {
     <Box
       sx={{
         minHeight: "100dvh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        px: { xs: 2, sm: 3 },
-        py: { xs: 4, sm: 6 },
-        bgcolor: "background.default",
+        position: "relative",
+        backgroundImage: "url(/images/loginbg.png)",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
       }}
     >
       <SignInCard />

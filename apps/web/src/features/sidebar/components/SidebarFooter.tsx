@@ -24,7 +24,8 @@ export function SidebarFooter({ collapsed }: SidebarFooterProps) {
 
   if (collapsed) {
     return (
-      <div className="border-t border-white/10 px-2 py-3">
+      <div className="px-2 py-3">
+        <div className="-mx-2 mb-2 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
         <ul className="flex flex-col items-center gap-1">
           <FooterIconButton icon={PuzzlePiece} label="Integrations" />
           <li className="my-1">
@@ -39,22 +40,23 @@ export function SidebarFooter({ collapsed }: SidebarFooterProps) {
   }
 
   return (
-    <div className="border-t border-white/10 px-3 py-3">
+    <div className="px-2.5 py-2">
+      <div className="-mx-2.5 mb-2 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
       <button
         type="button"
-        className="mb-2 flex w-full items-center gap-3 rounded px-2 py-1.5 text-[13px] text-sidebar-muted transition-colors hover:bg-white/5 hover:text-white"
+        className="mb-1 flex w-full items-center gap-2.5 rounded px-2 py-1 text-[12.5px] text-sidebar-muted transition-colors hover:bg-[#171920] hover:text-white"
       >
-        <PuzzlePiece size={18} />
+        <PuzzlePiece size={16} />
         <span>Integrations</span>
       </button>
 
-      <div className="mb-3 flex items-center gap-2.5 rounded px-2 py-1.5">
+      <div className="mb-2 flex items-center gap-2 rounded px-2 py-1">
         <Avatar initial={initial} src={user?.picture} />
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[12px] text-sidebar-muted">
+          <div className="truncate text-[11.5px] text-sidebar-muted">
             {truncatedEmail || user?.name || "Guest"}
           </div>
-          <div className="truncate text-[12px] text-white/90">{orgName}</div>
+          <div className="truncate text-[11.5px] text-white/90">{orgName}</div>
         </div>
       </div>
 
@@ -97,7 +99,7 @@ function FooterIconButton({
         type="button"
         title={label}
         aria-label={label}
-        className="flex h-9 w-9 items-center justify-center rounded text-sidebar-muted hover:bg-white/5 hover:text-white"
+        className="flex h-9 w-9 items-center justify-center rounded text-sidebar-muted hover:bg-[#171920] hover:text-white"
       >
         <Icon size={18} />
       </button>
@@ -115,7 +117,7 @@ function FooterTextButton({
   return (
     <button
       type="button"
-      className="flex flex-1 flex-col items-center gap-0.5 rounded py-1.5 text-[11px] text-sidebar-muted transition-colors hover:bg-white/5 hover:text-white"
+      className="flex flex-1 flex-col items-center gap-0.5 rounded py-1.5 text-[11px] text-sidebar-muted transition-colors hover:bg-[#171920] hover:text-white"
     >
       <Icon size={16} />
       <span>{label}</span>

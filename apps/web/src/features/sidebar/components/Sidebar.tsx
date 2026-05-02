@@ -29,7 +29,7 @@ export function Sidebar() {
   return (
     <aside
       className={`flex h-screen flex-col bg-sidebar-bg text-sidebar-muted transition-[width] duration-200 ease-out ${
-        collapsed ? "w-16" : "w-[260px]"
+        collapsed ? "w-16" : "w-[200px]"
       }`}
     >
       <SidebarHeader collapsed={collapsed} />

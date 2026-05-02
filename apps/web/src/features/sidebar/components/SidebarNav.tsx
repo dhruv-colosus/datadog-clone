@@ -3,7 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Fragment } from "react";
-import { navSections, type NavItem } from "../nav-config";
+import { ArrowSquareOut, Plus } from "@phosphor-icons/react";
+import {
+  navSections,
+  type FlyoutBadge,
+  type FlyoutGroup,
+  type FlyoutSubItem,
+  type NavItem,
+} from "../nav-config";
 
 type SidebarNavProps = {
   collapsed: boolean;
@@ -13,19 +20,18 @@ export function SidebarNav({ collapsed }: SidebarNavProps) {
   const pathname = usePathname();
 
   return (
-    <nav className="flex-1 overflow-y-auto px-2 py-2">
+    <nav className="flex-1 px-2.5 py-1">
       {navSections.map((section, index) => (
         <Fragment key={index}>
-          {index > 0 && <hr className="my-2 border-white/10" />}
-          <ul className="flex flex-col gap-0.5">
+          {index > 0 && <SectionDivider />}
+          <ul className="flex flex-col">
             {section.map((item) => (
-              <li key={item.href}>
-                <NavLinkItem
-                  item={item}
-                  collapsed={collapsed}
-                  active={isActive(pathname, item.href)}
-                />
-              </li>
+              <NavRow
+                key={item.href}
+                item={item}
+                collapsed={collapsed}
+                active={isActive(pathname, item.href)}
+              />
             ))}
           </ul>
         </Fragment>
@@ -34,12 +40,18 @@ export function SidebarNav({ collapsed }: SidebarNavProps) {
   );
 }
 
+function SectionDivider() {
+  return (
+    <div className="my-1 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+  );
+}
+
 function isActive(pathname: string | null, href: string) {
   if (!pathname) return false;
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function NavLinkItem({
+function NavRow({
   item,
   collapsed,
   active,
@@ -49,32 +61,174 @@ function NavLinkItem({
   active: boolean;
 }) {
   const Icon = item.icon;
-  const baseClasses =
-    "flex items-center rounded text-[13px] transition-colors";
   const stateClasses = active
-    ? "bg-white/10 text-white"
-    : "text-sidebar-muted hover:bg-white/5 hover:text-white";
+    ? "text-white hover:bg-[#171920]"
+    : "text-sidebar-muted hover:bg-[#171920] hover:text-white";
 
   if (collapsed) {
     return (
+      <li>
+        <Link
+          href={item.href}
+          title={item.label}
+          aria-label={item.label}
+          className={`mx-auto flex h-10 w-10 items-center justify-center rounded transition-colors ${stateClasses}`}
+        >
+          <Icon size={18} weight={active ? "fill" : "regular"} />
+        </Link>
+      </li>
+    );
+  }
+
+  return (
+    <li className="group/row relative">
       <Link
         href={item.href}
-        title={item.label}
-        aria-label={item.label}
-        className={`${baseClasses} ${stateClasses} h-10 w-10 justify-center mx-auto`}
+        className={`flex items-center gap-2.5 rounded px-2 py-1 transition-colors ${stateClasses}`}
       >
-        <Icon size={18} weight={active ? "fill" : "regular"} />
+        <Icon size={16} weight={active ? "fill" : "regular"} />
+        <span className="truncate text-[12.5px]">{item.label}</span>
+      </Link>
+      {item.flyout && item.flyout.length > 0 && (
+        <FlyoutPanel groups={item.flyout} />
+      )}
+    </li>
+  );
+}
+
+function FlyoutPanel({ groups }: { groups: FlyoutGroup[] }) {
+  const pathname = usePathname();
+  return (
+    <div
+      className="invisible absolute left-full top-0 z-50 max-h-[calc(100vh-1rem)] w-[300px] overflow-y-auto rounded-r-md bg-[#171920] py-3 opacity-0 shadow-2xl shadow-black/40 transition-opacity duration-100 group-hover/row:visible group-hover/row:opacity-100"
+      role="menu"
+    >
+      <div className="flex flex-col gap-3">
+        {groups.map((group, idx) => (
+          <FlyoutSection key={idx} group={group} pathname={pathname} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FlyoutSection({
+  group,
+  pathname,
+}: {
+  group: FlyoutGroup;
+  pathname: string | null;
+}) {
+  const hasPrimary = !!group.primary && group.primary.length > 0;
+  const hasSecondary = !!group.secondary && group.secondary.length > 0;
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 px-4">
+        <h3 className="text-[13px] font-semibold text-white">{group.heading}</h3>
+        {group.badge && <Badge kind={group.badge} />}
+      </div>
+      {group.emptyState && !hasPrimary && !hasSecondary && (
+        <div className="mt-1 px-4 text-[12px] italic text-sidebar-muted/70">
+          {group.emptyState}
+        </div>
+      )}
+      {(hasPrimary || hasSecondary) && (
+        <div className="mt-1 flex flex-col gap-2">
+          <SubItemList items={group.primary ?? []} pathname={pathname} />
+          {hasSecondary && (
+            <SubItemList items={group.secondary ?? []} pathname={pathname} />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SubItemList({
+  items,
+  pathname,
+}: {
+  items: FlyoutSubItem[];
+  pathname: string | null;
+}) {
+  if (items.length === 0) return null;
+  return (
+    <ul className="ml-4 flex flex-col border-l border-white/15 pl-1.5 pr-2">
+      {items.map((sub, i) => (
+        <li key={i}>
+          <SubItemRow
+            item={sub}
+            active={isSubItemActive(pathname, sub.href)}
+          />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function isSubItemActive(pathname: string | null, href?: string) {
+  if (!pathname || !href) return false;
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function SubItemRow({
+  item,
+  active,
+}: {
+  item: FlyoutSubItem;
+  active: boolean;
+}) {
+  const className = `flex w-full items-center gap-1.5 rounded-sm px-2 py-1 text-left text-[12.5px] transition-colors ${
+    active
+      ? "bg-[#1a73e8] text-white"
+      : "text-sidebar-muted hover:bg-white/10 hover:text-white"
+  }`;
+
+  const content = (
+    <>
+      {item.isCreate ? (
+        <Plus
+          size={12}
+          weight="bold"
+          className={`shrink-0 ${active ? "text-white" : "text-blue-400"}`}
+        />
+      ) : null}
+      <span className="truncate">{item.label}</span>
+      {item.badge && <Badge kind={item.badge} compact />}
+      {item.external && (
+        <ArrowSquareOut
+          size={11}
+          className={`shrink-0 ${
+            active ? "text-white/80" : "text-sidebar-muted/70"
+          }`}
+        />
+      )}
+    </>
+  );
+
+  if (item.href) {
+    return (
+      <Link href={item.href} className={className}>
+        {content}
       </Link>
     );
   }
 
   return (
-    <Link
-      href={item.href}
-      className={`${baseClasses} ${stateClasses} gap-3 px-2.5 py-1.5`}
-    >
-      <Icon size={18} weight={active ? "fill" : "regular"} />
-      <span className="truncate">{item.label}</span>
-    </Link>
+    <button type="button" className={className}>
+      {content}
+    </button>
   );
+}
+
+function Badge({ kind, compact }: { kind: FlyoutBadge; compact?: boolean }) {
+  const base = `rounded font-semibold uppercase tracking-wide ${
+    compact ? "px-1 text-[8.5px]" : "px-1.5 py-0.5 text-[9px]"
+  }`;
+  const tone =
+    kind === "NEW"
+      ? "bg-purple-600/25 text-purple-300"
+      : "border border-purple-400/40 text-purple-300";
+  return <span className={`${base} ${tone}`}>{kind}</span>;
 }

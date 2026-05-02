@@ -1,0 +1,526 @@
+# Datadog Sidebar + Quick-Start UI Spec
+# Source: https://app.datadoghq.com/help/quick_start?tab=infrastructure
+# Captured: 2026-05-02 (logged in as vedanta@techbrig.co / TechBrig org)
+# Use this YAML as the data model when cloning the Datadog frontend.
+
+app:
+  name: Datadog
+  layout:
+    type: shell
+    regions:
+      - left_sidebar          # collapsible nav (icon + label, fly-out submenus on hover)
+      - main_content          # routed view; defaults here to /help/quick_start
+
+# ----------------------------------------------------------------
+# LEFT SIDEBAR
+# ----------------------------------------------------------------
+sidebar:
+  brand:
+    logo: datadog              # purple "Datadog" wordmark + dog mascot at top
+    collapsible: true
+
+  # Top utility row (above the main nav)
+  top_section:
+    - id: go_to
+      label: "Go to…"
+      icon: search
+      shortcut: "⌘+K"
+      type: command_palette
+    - id: recent
+      label: Recent
+      icon: clock
+      type: flyout
+      sections:
+        - title: Recent
+          items:
+            - { label: Dashboards,                     type: page }
+            - { label: Metrics,                        type: page }
+            - { label: Page Not Found,                 type: page }
+            - { label: "Vedanta's Dashboard Fri, May 1, 3:27:30 pm", type: dashboard }
+            - { label: Monitors,                       type: page }
+            - { label: Investigations,                 type: page }
+    - id: bits_ai
+      label: Bits AI
+      icon: sparkle
+      type: flyout
+      sections:
+        - title: SRE Agent
+          badge: NEW
+          items:
+            - { label: "New Investigation", badge: PREVIEW }
+            - { label: Investigations }
+            - { label: Reports }
+            - { label: Settings }
+            - { label: Monitors }
+        - title: Dev Agent
+          badge: NEW
+          items:
+            - { label: "Code Sessions" }
+            - { label: Settings }
+
+  # Primary product nav
+  primary_nav:
+    - id: dashboards
+      label: Dashboards
+      icon: dashboard
+      type: flyout
+      sections:
+        - title: Dashboards
+          items:
+            - { label: Dashboard List }
+            - { label: New Dashboard, action: create }
+            - { label: Reports }
+        - title: Notebooks
+          items:
+            - { label: Notebooks List }
+            - { label: New Notebook, action: create }
+        - title: Sheets
+          badge: NEW
+          items:
+            - { label: Spreadsheets List }
+            - { label: New Spreadsheet, action: create }
+        - title: Quick Graph
+        - title: DDSQL Editor
+
+    - id: monitoring
+      label: Monitoring
+      icon: bell
+      type: flyout
+      sections:
+        - title: Monitors
+          items:
+            - { label: Monitor List, side_links: [Settings] }
+            - { label: New Monitor, action: create }
+            - { label: Triggered }
+            - { label: Downtimes }
+            - { label: Quality }
+        - title: SLOs
+        - title: Check Summary
+        - title: Event Management
+          items:
+            - { label: Triage Inbox, side_links: [Settings] }
+            - { label: All Events }
+        - title: Watchdog
+        - title: External Provider Status
+          badge: NEW
+
+    - id: incident_response
+      label: Incident Response
+      icon: siren
+      type: flyout
+      sections:
+        - title: On-Call
+          items:
+            - { label: Teams, side_links: [Settings] }
+            - { label: Pages }
+            - { label: Send a Page, action: create }
+        - title: Incident Management
+          items:
+            - { label: Incident List, side_links: [Settings] }
+            - { label: Declare Incident, action: create }
+        - title: Status Pages
+          badge: NEW
+        - title: Case Management
+
+    - id: automation
+      label: Automation
+      icon: bolt
+      type: flyout
+      sections:
+        - title: Actions
+          items:
+            - { label: Workflow Automation, side_links: [Action Catalog] }
+            - { label: New Workflow, action: create }
+            - { label: App Builder }
+            - { label: New App, action: create }
+            - { label: Case Management }
+            - { label: Agent Builder, badge: PREVIEW }
+            - { label: Forms, badge: PREVIEW, external: true }
+        - title: Internal Developer Portal
+          badge: NEW
+          items:
+            - { label: Software Catalog, side_links: [Teams] }
+            - { label: Scorecards }
+            - { label: Self-Service Actions }
+
+    - id: infrastructure
+      label: Infrastructure
+      icon: server
+      type: flyout
+      sections:
+        - title: Resources
+          items:
+            - { label: Catalog,    side_links: [{ label: Policies, badge: PREVIEW }, "Add Resources"] }
+            - { label: Cloudcraft, badge: NEW }
+            - { label: Changes,    badge: PREVIEW }
+        - title: Universal Service Monitoring
+          badge: NEW
+        - title: Hosts
+          items:
+            - { label: Host Map }
+            - { label: GPU Monitoring }
+        - title: Containers
+          items:
+            - { label: Kubernetes Overview }
+            - { label: Kubernetes Explorer }
+            - { label: Kubernetes Autoscaling, badge: NEW }
+            - { label: Container Images }
+            - { label: ECS Explorer }
+        - title: Processes
+        - title: Serverless
+        - title: Cloud Network
+          items:
+            - { label: Analytics }
+            - { label: Network Map }
+        - title: Network Devices
+          items:
+            - { label: Device Geomap, badge: NEW, side_links: [Settings] }
+            - { label: Device Topology Map }
+            - { label: NetFlow }
+        - title: Network Path
+          badge: NEW
+        - title: Storage Management
+          badge: NEW
+        - title: Starred Maps
+          empty_state: "No starred maps"
+
+    - id: cloud_cost
+      label: Cloud Cost
+      icon: coin
+      type: link            # no flyout — direct route
+
+    - id: apm
+      label: APM
+      icon: flow
+      type: flyout
+      sections:
+        - title: Software Catalog
+          items:
+            - { label: Services,   side_links: ["Add an Entity", Settings] }
+            - { label: Endpoints }
+            - { label: Scorecards }
+        - title: Traces
+          items:
+            - { label: Explorer, side_links: ["Ingestion Control", "Retention Filters", "Sensitive Data Scanner"] }
+            - { label: Generate Metrics }
+        - title: Profiles
+          items:
+            - { label: Explorer }
+            - { label: Comparison }
+            - { label: Insights, badge: NEW }
+        - title: Live Debugger
+          badge: PREVIEW
+        - title: Dynamic Instrumentation
+        - title: Database Monitoring
+        - title: Data Streams Monitoring
+        - title: Data Jobs Monitoring
+        - title: Recommendations
+          badge: NEW
+        - title: Starred Items
+          empty_state: "No starred services nor saved views"
+
+    - id: digital_experience
+      label: Digital Experience
+      icon: monitor
+      type: flyout
+      sections:
+        - title: Synthetic Monitoring & Testing
+          items:
+            - { label: Tests, side_links: [Settings] }
+            - { label: New Test, action: create }
+            - { label: Test Suites,    badge: NEW }
+            - { label: New Test Suite, badge: NEW, action: create }
+            - { label: Results Explorer }
+            - { label: Continuous Testing }
+            - { label: Test Coverage }
+        - title: Real User Monitoring
+          items:
+            - { label: Summary }
+            - { label: Explorer }
+            - { label: Optimization }
+            - { label: Manage Applications }
+            - { label: Generate Metrics }
+            - { label: Sensitive Data Scanner }
+            - { label: Feature Flag Tracking }
+            - { label: Error Tracking }
+        - title: Session Replay
+          items:
+            - { label: Recordings }
+            - { label: Playlists }
+        - title: Product Analytics
+          badge: NEW
+        - title: Starred Saved Views
+          empty_state: "No starred saved views"
+
+    - id: software_delivery
+      label: Software Delivery
+      icon: box
+      type: flyout
+      sections:
+        - title: Intro to CI Visibility
+        - title: Feature Flags
+          badge: NEW
+          items:
+            - { label: Feature Flags }
+            - { label: Environments }
+            - { label: Deployment Gates, badge: PREVIEW }
+        - title: Intro to Test Optimization
+        - title: Intro to Code Coverage
+          badge: NEW
+        - title: Code Security
+        - title: PR Gates
+          badge: NEW
+        - title: DORA Metrics
+        - title: Starred Saved Views
+          empty_state: "no matching items"
+
+    - id: security
+      label: Security
+      icon: shield
+      type: flyout
+      sections:
+        - title: Security
+          items:
+            - { label: Research Feed }
+        - title: Cloud SIEM
+        - title: Code Security
+        - title: Cloud Security
+        - title: App & API Protection
+        - title: Workload Protection
+        - title: Sensitive Data Scanner
+        - title: Findings
+        - title: Settings
+
+    - id: data_observability
+      label: Data Observability
+      icon: database
+      type: flyout
+      sections:
+        - title: Data Observability
+          badge: NEW
+          items:
+            - { label: Catalog, badge: NEW, side_links: [Settings] }
+        - title: Quality Monitoring
+          badge: NEW
+          items:
+            - { label: Monitors }
+            - { label: Datasets }
+        - title: Jobs Monitoring
+          items:
+            - { label: Jobs }
+            - { label: Queries, badge: PREVIEW }
+        - title: Lineage
+          badge: NEW
+
+    - id: ai_observability
+      label: AI Observability
+      icon: brain
+      type: flyout
+      sections:
+        - title: LLM Observability
+          items:
+            - { label: Overview }
+            - { label: Traces, side_links: [Evaluations, Settings] }
+            - { label: Experiments }
+            - { label: Datasets }
+            - { label: Annotations, badge: NEW }
+            - { label: Playground }
+        - title: GPU Monitoring
+        - title: AI Agents Console
+          badge: PREVIEW
+
+    - id: errors
+      label: Errors
+      icon: bug
+      type: link             # no flyout
+
+    - id: metrics
+      label: Metrics
+      icon: chart
+      type: flyout
+      sections:
+        - title: Metrics
+          items:
+            - { label: Explorer }
+            - { label: Summary }
+            - { label: Volume }
+
+    - id: logs
+      label: Logs
+      icon: list
+      type: flyout
+      sections:
+        - title: Search & Analytics
+          items:
+            - { label: Explorer }
+            - { label: Archive Search }
+            - { label: Live Tail }
+            - { label: Notebooks }
+        - title: Log Configuration
+          items:
+            - { label: Pipelines }
+            - { label: Indexes }
+            - { label: Flex Logs Controls }
+            - { label: Add a Log Source }
+            - { label: Generate Metrics }
+            - { label: Data Access }
+            - { label: Archiving & Forwarding }
+        - title: Observability Pipelines
+          badge: NEW
+        - title: Sensitive Data Scanner
+        - title: Starred Saved Views
+          empty_state: "No starred saved views"
+
+  # Bottom of the sidebar
+  bottom_section:
+    - id: integrations
+      label: Integrations
+      icon: puzzle
+      type: flyout
+      sections:
+        - title: Integrations
+        - title: Marketplace
+        - title: Reference Tables
+        - title: Source Code Integration
+        - title: Fleet Automation
+          items:
+            - { label: Fleet View }
+            - { label: Install Agents }
+            - { label: Configuration, badge: NEW }
+            - { label: Upgrades }
+        - title: IDE Plugins
+
+    - id: account
+      type: profile_card
+      avatar: green_pixel_robot
+      primary_text: vedanta@techbrig.co
+      secondary_text: TechBrig
+      menu_on_click: true       # opens account / org switcher
+
+    - id: footer_icons
+      type: icon_row
+      items:
+        - { id: invite,  icon: user_plus,    label: Invite }
+        - { id: support, icon: chat_bubble,  label: Support }
+        - { id: help,    icon: question,     label: Help }
+
+# ----------------------------------------------------------------
+# MAIN CONTENT — /help/quick_start?tab=infrastructure
+# ----------------------------------------------------------------
+main_content:
+  route: /help/quick_start
+  query_params:
+    tab: infrastructure        # also: services | frontend | integrations
+  layout: split_pane            # left: tab cards, right: tab detail
+
+  header:
+    avatar: green_pixel_robot
+    title: "Welcome, Vedanta!"
+    subtitle: "Let's start monitoring your entire stack"
+    trial_banner:
+      icon: clock
+      text: "You have 13 days left in your trial"
+      cta:
+        label: "Upgrade to Paid"
+        style: link
+
+  left_pane:
+    type: vertical_card_tabs
+    tabs:
+      - id: infrastructure
+        title: Infrastructure
+        icon: server
+        status_badge: { text: "NO AGENT DETECTED", tone: warning }
+        selected_default: true
+      - id: services
+        title: Services
+        icon: flow
+        status_badge: { text: "APM DISABLED", tone: neutral }
+      - id: frontend
+        title: Frontend
+        icon: monitor
+        status_badge: { text: "RUM DETECTED", tone: success }
+      - id: integrations
+        title: Integrations
+        icon: puzzle
+        status_badges:
+          - { text: "NO CLOUD PROVIDER",       tone: neutral }
+          - { text: "NO SOURCE CODE PROVIDER", tone: neutral }
+
+  right_pane:
+    # Content below shown when tab=infrastructure
+    state: empty
+    icon: spinner_dot
+    heading: "No Infrastructure Detected"
+    primary_cta:
+      label: "Install Your First Agent"
+      style: solid_purple
+      icon_trailing: external
+    body: >
+      With the Agent installed, you can monitor all your infrastructure
+      with real-time metrics like CPU, memory, disk, & network usage.
+    sub_heading: "Once the Agent is installed, your data will show up here."
+    preview:
+      type: screenshot_card
+      caption: "Your first host is live!"
+      meta: "i-0b0b67c2d073ea • Linux • 1 CPU • 8GB Memory • 100 GB Disk • 10.82.134.172"
+      panels:
+        - { title: "CPU usage (%)" }
+        - { title: "Processes memory usage" }
+        - { title: "Disk usage" }
+      footer: "We detected these running services"
+
+  footer:
+    copyright: "Copyright Datadog, Inc. 2026"
+    build: "35.111034500"
+    links:
+      - "Master Subscription Agreement"
+      - "Privacy Policy"
+      - "Cookie Policy"
+      - "Datadog Status →"
+    status_indicator:
+      dot: green
+      text: "All Systems Operational"
+
+# ----------------------------------------------------------------
+# DESIGN TOKENS (rough — refine from screenshots)
+# ----------------------------------------------------------------
+tokens:
+  colors:
+    sidebar_bg:        "#1B1C1D"   # near-black
+    sidebar_text:      "#C8CCD3"
+    sidebar_text_active: "#FFFFFF"
+    sidebar_active_bg: "#2B2C2E"
+    flyout_bg:         "#1F2123"
+    flyout_text:       "#E5E7EB"
+    accent_purple:     "#7C3AED"   # Datadog purple (Install Your First Agent CTA, brand)
+    badge_new_text:    "#A78BFA"
+    badge_preview_text:"#A78BFA"
+    body_bg:           "#FFFFFF"
+    body_text:         "#1B1C1D"
+    success:           "#10B981"   # green dot (RUM detected, status operational)
+    warning:           "#F59E0B"   # amber (no agent)
+  typography:
+    font_family: "Inter, system-ui, sans-serif"
+    sidebar_size: 13
+    flyout_section_size: 14
+    flyout_item_size: 13
+  spacing:
+    sidebar_width_collapsed: 160
+    flyout_panel_width: 500
+    main_max_width: 1200
+  radii:
+    card: 8
+    button: 6
+
+# ----------------------------------------------------------------
+# COMPONENT NOTES (for the rebuild)
+# ----------------------------------------------------------------
+component_notes:
+  - Sidebar items are <li> with class single-page-app_navbar_navbar-menu__list-item
+  - Hover on a sidebar item opens a dark-themed flyout panel anchored to its right edge.
+  - Flyout panels can have two columns (item list + side_links column) — see Monitors, On-Call, APM Traces, Synthetic Tests.
+  - Section titles inside flyouts can themselves be clickable links (e.g. Live Debugger, Watchdog).
+  - "+" prefix in flyouts (rendered in blue) marks "create new" actions: New Monitor, New Workflow, etc.
+  - Badges: NEW (purple) and PREVIEW (purple outline) appear next to either section titles or items.
+  - Bottom-left avatar block doubles as the org switcher.

@@ -13,30 +13,32 @@ export function SidebarSearch({ collapsed }: SidebarSearchProps) {
         <button
           type="button"
           aria-label="Search (⌘K)"
-          className="flex h-10 w-10 items-center justify-center rounded text-sidebar-muted hover:bg-white/5 hover:text-white"
+          className="flex h-10 w-10 items-center justify-center rounded text-sidebar-muted hover:bg-[#171920] hover:text-white"
           onClick={() => console.log("TODO: open command palette")}
         >
           <MagnifyingGlass size={18} />
         </button>
+        <div className="mx-auto mt-1 h-px w-full bg-gradient-to-r from-transparent via-white/20 to-transparent" />
       </div>
     );
   }
 
   return (
-    <div className="px-3 pb-2 pt-1">
+    <div className="px-2.5 pt-0.5">
       <button
         type="button"
         onClick={() => console.log("TODO: open command palette")}
-        className="flex w-full items-center gap-2 rounded border border-white/10 bg-transparent px-2.5 py-1.5 text-left text-sidebar-muted transition-colors hover:bg-white/5 hover:text-white"
+        className="flex w-full items-center gap-2 px-1 py-1.5 text-left text-sidebar-muted transition-colors hover:text-white"
       >
-        <MagnifyingGlass size={16} />
-        <span className="flex-1 text-[13px]">Go to...</span>
-        <span className="flex items-center gap-1 text-[11px] text-sidebar-muted/80">
-          <kbd className="rounded bg-white/10 px-1 py-0.5 font-sans">⌘</kbd>
+        <MagnifyingGlass size={15} />
+        <span className="flex-1 text-[12px]">Go to...</span>
+        <span className="flex items-center gap-1 text-[10px] text-sidebar-muted/80">
+          <kbd className="rounded bg-white/10 px-1 font-sans">⌘</kbd>
           <span className="opacity-60">+</span>
-          <kbd className="rounded bg-white/10 px-1 py-0.5 font-sans">K</kbd>
+          <kbd className="rounded bg-white/10 px-1 font-sans">K</kbd>
         </span>
       </button>
+      <div className="h-px w-full bg-gradient-to-r from-transparent via-white/20 to-transparent" />
     </div>
   );
 }

@@ -1,0 +1,93 @@
+version: 1
+base_url: "${DATADOG_BASE_URL}"
+
+screens:
+  - id: nav-shell
+    name: Navigation shell (sidebar + topbar)
+    url: /
+    intent: |
+      Capture the global navigation: full sidebar (every top-level entry), the topbar
+      (org switcher, search trigger, help, profile), and any persistent footer. Hover
+      each top-level sidebar entry one at a time to surface submenus.
+    states: [default, sidebar-hovered]
+    budget_steps: 25
+
+  - id: dashboards-list
+    name: Dashboards list
+    url: /dashboard/lists
+    intent: |
+      Document the dashboards index page: header bar, filter sidebar, table columns,
+      row affordances (favorite, share, more-actions menu), pagination, and any empty
+      or loading state observed.
+    states: [default, with-search-applied, row-actions-menu-open]
+    budget_steps: 20
+
+  - id: dashboard-detail
+    name: A specific dashboard (read-only)
+    url: /dashboard/lists
+    follow: "click the first non-empty dashboard row"
+    intent: |
+      Document the dashboard view: widget grid layout, time-range picker, edit-mode
+      affordance (do NOT enter edit mode), share/export menu (open it but do not
+      export). Note widget types observed.
+    states: [default, time-picker-open, share-menu-open]
+    budget_steps: 30
+
+  - id: monitors-list
+    name: Monitors list
+    url: /monitors/manage
+    intent: |
+      Document the monitors list page: filter sidebar (status, tag, type), status
+      pills, table columns, bulk-actions bar (open it but do not act), notification
+      badge area.
+    states: [default, filtered, bulk-actions-open]
+    budget_steps: 20
+
+  - id: monitor-create-entry
+    name: Monitor type picker
+    url: /monitors/create
+    intent: |
+      Document the monitor-type chooser screen: each monitor-type tile (Metric, APM,
+      Logs, Process, etc.). DO NOT proceed past the picker — do not click into any
+      type.
+    states: [default]
+    budget_steps: 10
+
+  - id: logs-explorer
+    name: Logs Explorer
+    url: /logs
+    intent: |
+      Document the logs explorer shell: query bar, time picker, facet panel (left),
+      logs table, side panel that opens on row click. Capture an empty-result state
+      if you can trigger one with a nonsense query.
+    states: [default, row-side-panel-open, facet-expanded]
+    budget_steps: 30
+
+  - id: metrics-explorer
+    name: Metrics Explorer
+    url: /metric/explorer
+    intent: |
+      Document the metric explorer: metric picker, scope/groupby controls, graph
+      area, secondary filter row, save/export affordances (do not invoke).
+    states: [default, metric-picker-open]
+    budget_steps: 25
+
+  - id: search-command-bar
+    name: Global search / command palette
+    url: /
+    follow: "press Meta+K (or Ctrl+K)"
+    intent: |
+      Document the global search palette: result categories, recent items section,
+      keyboard shortcut hints, footer help text.
+    states: [default]
+    budget_steps: 10
+
+  - id: user-profile-menu
+    name: User profile / org dropdown
+    url: /
+    follow: "click the profile avatar in the top-right"
+    intent: |
+      Document the dropdown menu items: organization switcher, settings entries,
+      sign-out. Close the menu when done.
+    states: [default]
+    budget_steps: 8

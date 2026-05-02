@@ -1,0 +1,254 @@
+# ------------------------------------------------------------------------------
+# OS / editor junk
+# ------------------------------------------------------------------------------
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.iml
+*.suo
+*.user
+*.userossc
+*.sln.docstates
+*.swp
+*.swo
+*~
+
+# ------------------------------------------------------------------------------
+# Environment / secrets
+# ------------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.local
+*.secret
+*.secrets
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# Auth / session artifacts
+**/.auth/
+**/auth-state*.json
+**/storageState*.json
+**/playwright/.auth/
+
+# ------------------------------------------------------------------------------
+# Logs / temp / caches
+# ------------------------------------------------------------------------------
+logs/
+*.log
+*.log.*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+*.pid
+*.pid.lock
+*.seed
+*.tmp
+*.temp
+tmp/
+temp/
+.cache/
+.eslintcache
+.stylelintcache
+*.tsbuildinfo
+
+# ------------------------------------------------------------------------------
+# Node / pnpm / frontend
+# ------------------------------------------------------------------------------
+node_modules/
+.pnpm-store/
+.npm/
+.yarn/
+.turbo/
+.next/
+.next-cache/
+.parcel-cache/
+dist/
+build/
+out/
+coverage/
+storybook-static/
+
+# App-specific frontend outputs
+apps/web/node_modules/
+apps/web/.next/
+apps/web/out/
+apps/web/dist/
+apps/web/build/
+apps/web/coverage/
+apps/web/test-results/
+apps/web/playwright-report/
+apps/web/blob-report/
+apps/web/.turbo/
+
+apps/desktop/node_modules/
+apps/desktop/dist/
+apps/desktop/out/
+apps/desktop/build/
+apps/desktop/release/
+apps/desktop/.webpack/
+apps/desktop/.vite/
+apps/desktop/.turbo/
+
+# Package build outputs
+packages/*/node_modules/
+packages/*/dist/
+packages/*/build/
+
+# ------------------------------------------------------------------------------
+# Playwright / browser automation
+# ------------------------------------------------------------------------------
+playwright-report/
+blob-report/
+test-results/
+test-artifacts/
+.traces/
+traces/
+videos/
+screenshots/
+*.trace
+*.har
+*.webm
+*.mp4
+
+# ------------------------------------------------------------------------------
+# Python / FastAPI
+# ------------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+.python-version
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.pytype/
+.hypothesis/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+site/
+.eggs/
+*.egg
+*.egg-info/
+pip-wheel-metadata/
+
+.venv/
+venv/
+ENV/
+env/
+
+# API-specific Python junk
+apps/api/.venv/
+apps/api/.pytest_cache/
+apps/api/.mypy_cache/
+apps/api/.ruff_cache/
+apps/api/htmlcov/
+apps/api/coverage/
+
+# Databases / local data
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+postgres_data/
+pgdata/
+.pgdata/
+
+# ------------------------------------------------------------------------------
+# Docker / container junk
+# ------------------------------------------------------------------------------
+docker-data/
+*.tar
+*.tar.gz
+docker-compose.override.yml
+
+# ------------------------------------------------------------------------------
+# Claude / agent local folders
+# ------------------------------------------------------------------------------
+.claude/
+.claude-code/
+.anthropic/
+.cursor/
+.cursor-cache/
+
+# ------------------------------------------------------------------------------
+# Research artifacts
+# ------------------------------------------------------------------------------
+research/raw/**
+!research/raw/**/.gitkeep
+
+research/reports/**
+!research/reports/**/.gitkeep
+
+# ------------------------------------------------------------------------------
+# Generated intermediate artifacts
+# ------------------------------------------------------------------------------
+generated/manifests/**
+!generated/manifests/.gitkeep
+
+generated/codegen/**
+!generated/codegen/.gitkeep
+
+generated/diffs/**
+!generated/diffs/.gitkeep
+
+specs/generated/**
+!specs/generated/.gitkeep
+
+# ------------------------------------------------------------------------------
+# App reports
+# ------------------------------------------------------------------------------
+apps/web/reports/**
+!apps/web/reports/.gitkeep
+
+apps/api/reports/**
+!apps/api/reports/.gitkeep
+
+apps/desktop/reports/**
+!apps/desktop/reports/.gitkeep
+
+# ------------------------------------------------------------------------------
+# Deployment / release outputs
+# ------------------------------------------------------------------------------
+deployment/releases/**
+!deployment/releases/.gitkeep
+
+deployment/environments/**/.env
+deployment/environments/**/.env.*
+!deployment/environments/**/.env.example
+!deployment/environments/**/.env.*.example
+
+# ------------------------------------------------------------------------------
+# Docs / export artifacts
+# ------------------------------------------------------------------------------
+*.pdf
+*.pptx
+*.docx
+
+# ------------------------------------------------------------------------------
+# Always allow placeholder keep files
+# ------------------------------------------------------------------------------
+!**/.gitkeep
+
+
+plans

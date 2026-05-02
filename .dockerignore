@@ -1,0 +1,41 @@
+**/node_modules
+**/.next
+**/.turbo
+**/.venv
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+
+.git
+.github
+.claude
+.vscode
+.idea
+
+.env
+**/.env
+**/.env.local
+**/.env.*.local
+
+**/*.md
+**/README*
+
+# Monorepo side-dirs not needed for web/api builds
+agents
+deployment
+docs
+generated
+plans
+research
+scripts
+specs
+
+# Build artifacts
+**/dist
+**/build
+**/out
+**/*.tsbuildinfo
+
+# OS / editor
+.DS_Store
+*.log

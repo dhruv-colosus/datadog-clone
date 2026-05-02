@@ -1,0 +1,15 @@
+{
+  "name": "datadog-clone",
+  "private": true,
+  "packageManager": "pnpm@10.0.0",
+  "scripts": {
+    "dev:web": "pnpm --dir apps/web dev",
+    "dev:api": "cd apps/api && uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",
+    "capture": "node scripts/capture/run-computer-use.mjs",
+    "formalize": "node scripts/formalize/normalize-session.mjs",
+    "synthesize": "node scripts/synthesize/generate-playwright-assets.mjs && node scripts/synthesize/generate-specs.mjs",
+    "generate": "node scripts/generate/generate-backend.mjs && node scripts/generate/generate-openapi-client.mjs && node scripts/generate/generate-frontend.mjs && node scripts/generate/generate-tests.mjs && node scripts/generate/generate-seeds.mjs",
+    "validate": "bash scripts/validate/run-typecheck.sh && bash scripts/validate/run-pytests.sh && bash scripts/validate/run-playwright-clone.sh",
+    "package": "bash scripts/package/build-api-image.sh && bash scripts/package/build-web-image.sh && bash scripts/package/build-electron.sh"
+  }
+}

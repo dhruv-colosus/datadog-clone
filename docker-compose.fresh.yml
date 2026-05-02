@@ -1,0 +1,43 @@
+# Fresh-per-run override: ephemeral DB (tmpfs) + grader-friendly local env.
+#
+# Stack with the base + local override so you keep the dev-friendly port mapping:
+#   docker compose -f docker-compose.yml -f docker-compose.local.yml -f docker-compose.fresh.yml up --build
+#
+# Each `up` starts with an empty Postgres (tmpfs evaporates on stop). Alembic
+# migrations run on api boot via apps/api/entrypoint.sh, so schema is rebuilt.
+#
+# Endpoints exposed by this override:
+#   GET  /ready                 — DB up + migrations applied
+#   GET  /state                 — { is_empty, is_seeded, counts, schema_version }
+#   POST /admin/seed            — header X-Admin-Key: local-fresh-key
+#   POST /admin/reset           — header X-Admin-Key: local-fresh-key
+#   POST /auth/test-login       — issues session cookie for the seeded test user
+#   GET  /auth/config           — { test_auth_enabled: true } here
+#
+# DO NOT ship this file's defaults to production. ADMIN_API_KEY and
+# TEST_AUTH_ENABLED=true here are intentionally local-only.
+
+services:
+  db:
+    restart: "no"
+    volumes: !reset []
+    tmpfs:
+      - /var/lib/postgresql/data
+
+  api:
+    restart: "no"
+    environment:
+      TEST_AUTH_ENABLED: "true"
+      TEST_AUTH_EMAIL: "playwright-e2e@example.com"
+      TEST_AUTH_NAME: "Playwright Test"
+      ADMIN_API_KEY: "local-fresh-key"
+      COOKIE_SECURE: "false"
+      COOKIE_DOMAIN: "localhost"
+      COOKIE_SAMESITE: "lax"
+      FRONTEND_URL: "http://localhost:3000"
+
+  web:
+    restart: "no"
+
+volumes:
+  pgdata: !reset null

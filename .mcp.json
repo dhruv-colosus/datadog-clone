@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "capture-mcp": {
+      "command": "node",
+      "args": ["agents/capture-agent/dist/mcp-server.js"],
+      "env": {
+        "CAPTURE_PROJECT_ROOT": "${workspaceFolder}"
+      }
+    }
+  }
+}

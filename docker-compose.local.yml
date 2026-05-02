@@ -1,0 +1,23 @@
+# Local-dev override: skip Caddy/TLS, publish ports so you can curl services directly.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
+#
+# NOTE: .env must exist. For local, you can set COOKIE_DOMAIN=localhost, COOKIE_SECURE=false,
+# FRONTEND_URL=http://localhost:3000,
+# and DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/datadogdb.
+
+services:
+  api:
+    ports:
+      - "8000:8000"
+
+  web:
+    build:
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+
+  caddy:
+    profiles: ["disabled"]

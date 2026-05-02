@@ -1,0 +1,54 @@
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://datadog-clone.local/schema/capture-targets.json"
+title: "Capture targets"
+description: "Ordered list of Datadog screens for the capture stage to walk."
+type: object
+required: [version, base_url, screens]
+additionalProperties: false
+properties:
+  version:
+    const: 1
+  base_url:
+    type: string
+    description: "Public Datadog base URL, e.g. https://app.datadoghq.com. May reference ${DATADOG_BASE_URL}."
+    minLength: 1
+  screens:
+    type: array
+    minItems: 1
+    items:
+      type: object
+      required: [id, name, url, intent]
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          pattern: "^[a-z0-9][a-z0-9-]*$"
+          description: "Stable kebab-case identifier; used as the screen directory name."
+        name:
+          type: string
+          minLength: 1
+          description: "Human-readable label."
+        url:
+          type: string
+          minLength: 1
+          description: "Path relative to base_url, e.g. /dashboard/lists."
+        follow:
+          type: string
+          description: "Optional post-navigation interaction Claude should perform before capturing the default state, e.g. 'click first dashboard row'."
+        intent:
+          type: string
+          minLength: 1
+          description: "What this screen is trying to teach the formalize stage. Drives Claude's narration focus."
+        states:
+          type: array
+          default: [default]
+          items:
+            type: string
+            minLength: 1
+          description: "State variants to capture (default, hovered, panel-open, etc.). Claude triggers each and screenshots."
+        budget_steps:
+          type: integer
+          minimum: 1
+          maximum: 200
+          default: 20
+          description: "Maximum MCP tool calls allowed for this screen."

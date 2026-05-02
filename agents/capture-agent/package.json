@@ -1,0 +1,27 @@
+{
+  "name": "@datadog-clone/capture-agent",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "dist/mcp-server.js",
+  "bin": {
+    "capture-mcp": "dist/mcp-server.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/mcp-server.js",
+    "dev": "tsc -w -p tsconfig.json"
+  },
+  "dependencies": {
+    "@e2b/desktop": "^1.0.0",
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "dotenv": "^16.4.5",
+    "playwright": "^1.49.0",
+    "yaml": "^2.6.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0"
+  }
+}

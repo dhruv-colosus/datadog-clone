@@ -73,12 +73,14 @@ export const MOCK_TAGS: { tag: string; values: string[] }[] = [
   {
     tag: "service",
     values: [
-      "checkout",
-      "payments",
+      "web",
+      "api",
       "auth",
-      "search",
-      "feed",
-      "notifications",
+      "payments",
+      "worker",
+      "caddy",
+      "postgres",
+      "redis",
     ],
   },
   {

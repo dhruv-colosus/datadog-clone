@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATH_PREFIXES = ["/auth/"];
+const PUBLIC_PATH_PREFIXES = ["/auth/", "/public/"];
 const AUTH_REDIRECT_PREFIXES = ["/auth/"];
 
 export function middleware(request: NextRequest) {

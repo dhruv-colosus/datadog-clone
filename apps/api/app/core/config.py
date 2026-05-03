@@ -30,6 +30,18 @@ class Settings(BaseSettings):
 
     admin_api_key: str | None = None
 
+    backfill_on_boot: bool = True
+    backfill_days: int = 7
+    tick_interval_seconds: int = 60
+    generator_enabled: bool = True
+    # Fraction of (metric, host) series to emit on each tick. Lower = sparser
+    # data but faster generation. With ~1600 series in topology, 0.05 → ~80
+    # rows/tick. At a 60s tick that's ~115k metric points/day.
+    metric_sample_rate: float = 0.05
+    # Multiplier applied to per-service log/trace base rates. Lower = quieter.
+    log_rate_factor: float = 0.05
+    trace_rate_factor: float = 0.05
+
 
 @lru_cache
 def get_settings() -> Settings:

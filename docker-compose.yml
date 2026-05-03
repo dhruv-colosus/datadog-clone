@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:16-alpine
+    image: timescale/timescaledb:latest-pg16
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -37,6 +37,10 @@ services:
       TEST_AUTH_EMAIL: ${TEST_AUTH_EMAIL:-playwright-e2e@example.com}
       TEST_AUTH_NAME: ${TEST_AUTH_NAME:-Playwright Test}
       ADMIN_API_KEY: ${ADMIN_API_KEY:-}
+      BACKFILL_ON_BOOT: ${BACKFILL_ON_BOOT:-true}
+      BACKFILL_DAYS: ${BACKFILL_DAYS:-7}
+      TICK_INTERVAL_SECONDS: ${TICK_INTERVAL_SECONDS:-5}
+      GENERATOR_ENABLED: ${GENERATOR_ENABLED:-true}
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
       interval: 10s

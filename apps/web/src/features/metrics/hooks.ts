@@ -1,6 +1,11 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueries,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import {
   fetchDashboards,
   fetchMetricNames,
@@ -71,6 +76,20 @@ export function useMetricSeries(query: MetricQuery, range: TimeRange) {
     queryFn: () => fetchMetricSeries(query, range),
     enabled: Boolean(query.metricName) && query.enabled,
     staleTime: 30_000,
+  });
+}
+
+export function useMultipleMetricSeries(
+  queries: MetricQuery[],
+  range: TimeRange,
+) {
+  return useQueries({
+    queries: queries.map((query) => ({
+      queryKey: metricKeys.series(query, range),
+      queryFn: () => fetchMetricSeries(query, range),
+      enabled: Boolean(query.metricName) && query.enabled,
+      staleTime: 30_000,
+    })),
   });
 }
 

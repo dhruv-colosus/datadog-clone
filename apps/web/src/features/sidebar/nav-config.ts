@@ -91,13 +91,13 @@ export const navSections: NavSection[] = [
     },
     {
       label: "Dashboards",
-      href: "/dashboard",
+      href: "/dashboard/lists",
       icon: ChartLine,
       flyout: [
         {
           heading: "Dashboards",
           primary: [
-            { label: "Dashboard List" },
+            { label: "Dashboard List", href: "/dashboard/lists" },
             { label: "New Dashboard", isCreate: true },
             { label: "Reports" },
           ],
@@ -123,14 +123,14 @@ export const navSections: NavSection[] = [
     },
     {
       label: "Monitoring",
-      href: "/monitoring",
+      href: "/monitors/manage",
       icon: Gauge,
       flyout: [
         {
           heading: "Monitors",
           primary: [
-            { label: "Monitor List" },
-            { label: "New Monitor", isCreate: true },
+            { label: "Monitor List", href: "/monitors/manage" },
+            { label: "New Monitor", href: "/monitors/create", isCreate: true },
             { label: "Triggered" },
             { label: "Downtimes" },
             { label: "Quality" },
@@ -214,7 +214,7 @@ export const navSections: NavSection[] = [
         {
           heading: "Resources",
           primary: [
-            { label: "Catalog" },
+            { label: "Catalog", href: "/infrastructure" },
             { label: "Cloudcraft", badge: "NEW" },
             { label: "Changes", badge: "PREVIEW" },
           ],
@@ -226,7 +226,10 @@ export const navSections: NavSection[] = [
         { heading: "Universal Service Monitoring", badge: "NEW" },
         {
           heading: "Hosts",
-          primary: [{ label: "Host Map" }, { label: "GPU Monitoring" }],
+          primary: [
+            { label: "Host Map", href: "/infrastructure/map" },
+            { label: "GPU Monitoring" },
+          ],
         },
         {
           heading: "Containers",
@@ -265,13 +268,13 @@ export const navSections: NavSection[] = [
     },
     {
       label: "APM",
-      href: "/apm",
+      href: "/apm/home",
       icon: Faders,
       flyout: [
         {
           heading: "Software Catalog",
           primary: [
-            { label: "Services" },
+            { label: "Services", href: "/apm/home" },
             { label: "Endpoints" },
             { label: "Scorecards" },
           ],
@@ -279,7 +282,10 @@ export const navSections: NavSection[] = [
         },
         {
           heading: "Traces",
-          primary: [{ label: "Explorer" }, { label: "Generate Metrics" }],
+          primary: [
+            { label: "Explorer", href: "/apm/traces" },
+            { label: "Generate Metrics" },
+          ],
           secondary: [
             { label: "Ingestion Control" },
             { label: "Retention Filters" },

@@ -6,7 +6,7 @@ import {
   useApmResources,
   useApmServiceResourceSeries,
 } from "../hooks";
-import { useApmServiceDetailStore } from "../store";
+import { useApmServiceDetailStore, useApmTracesStore } from "../store";
 import type { ApmResource, ApmService } from "../types";
 import { ApmBarChart } from "./ApmBarChart";
 import { ApmLineChart } from "./ApmLineChart";
@@ -35,8 +35,12 @@ export function ServiceResourcesTab({ service }: { service: ApmService }) {
   const search = useApmServiceDetailStore((s) => s.resourceSearch);
   const setSearch = useApmServiceDetailStore((s) => s.setResourceSearch);
   const [sortKey, setSortKey] = useState<SortKey>("totalTime");
+  const range = useApmTracesStore((s) => s.timeRange);
   const { data: resources } = useApmResources(service.id);
-  const { data: seriesByResource } = useApmServiceResourceSeries(service.id);
+  const { data: seriesByResource } = useApmServiceResourceSeries(
+    service.id,
+    range,
+  );
 
   const filtered = useMemo<ApmResource[]>(() => {
     const list = resources ?? [];

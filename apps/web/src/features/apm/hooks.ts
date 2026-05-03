@@ -2,13 +2,17 @@
 
 import { useQuery } from "@tanstack/react-query";
 import {
+  fetchApmDependencies,
   fetchApmFacets,
+  fetchApmOperations,
   fetchApmRecommendations,
   fetchApmResources,
   fetchApmService,
+  fetchApmServiceMap,
   fetchApmServiceResourceSeries,
   fetchApmServiceSummarySeries,
   fetchApmServices,
+  fetchApmTrace,
   searchApmSpans,
 } from "./api";
 import type { ApmTimeRange, ApmTracesQuery } from "./types";
@@ -17,11 +21,13 @@ export const apmKeys = {
   all: ["apm"] as const,
   services: (env: string) => ["apm", "services", env] as const,
   service: (id: string) => ["apm", "service", id] as const,
+  operations: (id: string) => ["apm", "operations", id] as const,
   recommendations: (type: string) => ["apm", "recommendations", type] as const,
   resources: (id: string) => ["apm", "resources", id] as const,
-  serviceSummary: (id: string) => ["apm", "service-summary-series", id] as const,
-  serviceResources: (id: string) =>
-    ["apm", "service-resources-series", id] as const,
+  serviceSummary: (id: string, fromMs: number, toMs: number) =>
+    ["apm", "service-summary-series", id, fromMs, toMs] as const,
+  serviceResources: (id: string, fromMs: number, toMs: number) =>
+    ["apm", "service-resources-series", id, fromMs, toMs] as const,
   spans: (q: ApmTracesQuery, r: ApmTimeRange) =>
     [
       "apm",
@@ -44,6 +50,10 @@ export const apmKeys = {
       r.fromMs,
       r.toMs,
     ] as const,
+  dependencies: () => ["apm", "dependencies"] as const,
+  serviceMap: (env: string, lookback: number) =>
+    ["apm", "service-map", env, lookback] as const,
+  trace: (id: string) => ["apm", "trace", id] as const,
 };
 
 export function useApmServices(env: string) {
@@ -59,6 +69,16 @@ export function useApmService(id: string) {
     queryKey: apmKeys.service(id),
     queryFn: () => fetchApmService(id),
     staleTime: 30_000,
+    enabled: Boolean(id),
+  });
+}
+
+export function useApmOperations(serviceId: string) {
+  return useQuery({
+    queryKey: apmKeys.operations(serviceId),
+    queryFn: () => fetchApmOperations(serviceId),
+    staleTime: 30_000,
+    enabled: Boolean(serviceId),
   });
 }
 
@@ -77,22 +97,31 @@ export function useApmResources(serviceId: string) {
     queryKey: apmKeys.resources(serviceId),
     queryFn: () => fetchApmResources(serviceId),
     staleTime: 30_000,
+    enabled: Boolean(serviceId),
   });
 }
 
-export function useApmServiceSummarySeries(serviceId: string) {
+export function useApmServiceSummarySeries(
+  serviceId: string,
+  range: ApmTimeRange,
+) {
   return useQuery({
-    queryKey: apmKeys.serviceSummary(serviceId),
-    queryFn: () => fetchApmServiceSummarySeries(serviceId),
+    queryKey: apmKeys.serviceSummary(serviceId, range.fromMs, range.toMs),
+    queryFn: () => fetchApmServiceSummarySeries(serviceId, range),
     staleTime: 30_000,
+    enabled: Boolean(serviceId),
   });
 }
 
-export function useApmServiceResourceSeries(serviceId: string) {
+export function useApmServiceResourceSeries(
+  serviceId: string,
+  range: ApmTimeRange,
+) {
   return useQuery({
-    queryKey: apmKeys.serviceResources(serviceId),
-    queryFn: () => fetchApmServiceResourceSeries(serviceId),
+    queryKey: apmKeys.serviceResources(serviceId, range.fromMs, range.toMs),
+    queryFn: () => fetchApmServiceResourceSeries(serviceId, range),
     staleTime: 30_000,
+    enabled: Boolean(serviceId),
   });
 }
 
@@ -109,5 +138,30 @@ export function useApmFacets(query: ApmTracesQuery, range: ApmTimeRange) {
     queryKey: apmKeys.facets(query, range),
     queryFn: () => fetchApmFacets(query, range),
     staleTime: 30_000,
+  });
+}
+
+export function useApmDependencies() {
+  return useQuery({
+    queryKey: apmKeys.dependencies(),
+    queryFn: () => fetchApmDependencies(),
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useApmServiceMap(env: string, lookbackSeconds = 600) {
+  return useQuery({
+    queryKey: apmKeys.serviceMap(env, lookbackSeconds),
+    queryFn: () => fetchApmServiceMap(env, lookbackSeconds),
+    staleTime: 30_000,
+  });
+}
+
+export function useApmTrace(traceId: string) {
+  return useQuery({
+    queryKey: apmKeys.trace(traceId),
+    queryFn: () => fetchApmTrace(traceId),
+    staleTime: 60_000,
+    enabled: Boolean(traceId),
   });
 }

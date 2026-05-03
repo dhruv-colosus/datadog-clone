@@ -275,6 +275,7 @@ export const navSections: NavSection[] = [
           heading: "Software Catalog",
           primary: [
             { label: "Services", href: "/apm/home" },
+            { label: "Service Map", href: "/apm/service-map" },
             { label: "Endpoints" },
             { label: "Scorecards" },
           ],

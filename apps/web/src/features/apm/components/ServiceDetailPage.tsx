@@ -14,9 +14,12 @@ import { TimeRangePicker } from "@/components/ui/TimeRangePicker";
 import { useApmService } from "../hooks";
 import { useApmServiceDetailStore, useApmTracesStore } from "../store";
 import { ApmHeader } from "./ApmHeader";
+import { ServiceDependenciesTab } from "./ServiceDependenciesTab";
+import { ServiceOperationsTab } from "./ServiceOperationsTab";
 import { ServiceResourcesTab } from "./ServiceResourcesTab";
 import { ServiceSidebar } from "./ServiceSidebar";
 import { ServiceSummaryTab } from "./ServiceSummaryTab";
+import { ServiceTracesTab } from "./ServiceTracesTab";
 import { ServiceTypeIcon } from "./ServiceTypeIcon";
 
 export function ServiceDetailPage({ serviceId }: { serviceId: string }) {
@@ -152,10 +155,17 @@ export function ServiceDetailPage({ serviceId }: { serviceId: string }) {
       <div className="flex flex-1 overflow-hidden">
         <ServiceSidebar />
         {tab === "summary" && <ServiceSummaryTab service={service} />}
+        {tab === "operations" && <ServiceOperationsTab service={service} />}
         {tab === "resources" && <ServiceResourcesTab service={service} />}
-        {tab !== "summary" && tab !== "resources" && (
-          <EmptyTabState tab={tab} />
-        )}
+        {tab === "dependencies" && <ServiceDependenciesTab service={service} />}
+        {tab === "traces" && <ServiceTracesTab service={service} />}
+        {!new Set([
+          "summary",
+          "operations",
+          "resources",
+          "dependencies",
+          "traces",
+        ]).has(tab) && <EmptyTabState tab={tab} />}
       </div>
     </div>
   );

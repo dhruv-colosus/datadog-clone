@@ -1,135 +1,169 @@
-import {
-  APM_RECOMMENDATIONS,
-  APM_SERVICES,
-  APM_SPANS,
-  getResourcesForService,
-  getServiceResourceSeries,
-  getServiceSummarySeries,
-} from "./mock-data";
 import type {
+  ApmDependency,
   ApmFacets,
+  ApmOperation,
   ApmRecommendation,
   ApmResource,
   ApmService,
+  ApmServiceMap,
   ApmServiceSeries,
   ApmSpan,
-  ApmSpanStatus,
   ApmTimeRange,
+  ApmTraceDetail,
   ApmTracesQuery,
 } from "./types";
 
-function delay<T>(value: T, ms = 80): Promise<T> {
-  return new Promise((resolve) => setTimeout(() => resolve(value), ms));
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
+export const apmEndpoints = {
+  services: `${API_URL}/apm/services`,
+  service: (name: string) => `${API_URL}/apm/services/${name}`,
+  operations: (name: string) => `${API_URL}/apm/services/${name}/operations`,
+  resources: (name: string) => `${API_URL}/apm/services/${name}/resources`,
+  serviceSeries: (name: string) => `${API_URL}/apm/services/${name}/series`,
+  resourcesSeries: (name: string) =>
+    `${API_URL}/apm/services/${name}/resources-series`,
+  dependencies: `${API_URL}/apm/dependencies`,
+  serviceMap: `${API_URL}/apm/service-map`,
+  spansSearch: `${API_URL}/apm/spans/search`,
+  spansFacets: `${API_URL}/apm/spans/facets`,
+  trace: (id: string) => `${API_URL}/apm/traces/${id}`,
+  recommendations: `${API_URL}/apm/recommendations`,
+};
+
+async function getJson<T>(url: string): Promise<T> {
+  const res = await fetch(url, { credentials: "include" });
+  if (!res.ok) {
+    throw new Error(`GET ${url} failed: ${res.status} ${res.statusText}`);
+  }
+  return res.json() as Promise<T>;
+}
+
+async function postJson<T>(url: string, body: unknown): Promise<T> {
+  const res = await fetch(url, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    throw new Error(`POST ${url} failed: ${res.status} ${res.statusText}`);
+  }
+  return res.json() as Promise<T>;
 }
 
 export async function fetchApmServices(env: string): Promise<ApmService[]> {
-  return delay(APM_SERVICES.filter((s) => s.env === env));
+  const url = new URL(apmEndpoints.services);
+  if (env) url.searchParams.set("env", env);
+  return getJson<ApmService[]>(url.toString());
 }
 
 export async function fetchApmService(id: string): Promise<ApmService | null> {
-  return delay(APM_SERVICES.find((s) => s.id === id) ?? null);
+  try {
+    return await getJson<ApmService>(apmEndpoints.service(id));
+  } catch (err) {
+    if (err instanceof Error && err.message.includes("404")) return null;
+    throw err;
+  }
 }
 
-export async function fetchApmRecommendations(
-  type: "all" | "performance" | "reliability" | "cost",
-): Promise<ApmRecommendation[]> {
-  return delay(
-    type === "all"
-      ? APM_RECOMMENDATIONS
-      : APM_RECOMMENDATIONS.filter((r) => r.type === type),
-  );
+export async function fetchApmOperations(
+  serviceId: string,
+): Promise<ApmOperation[]> {
+  return getJson<ApmOperation[]>(apmEndpoints.operations(serviceId));
 }
 
 export async function fetchApmResources(
   serviceId: string,
 ): Promise<ApmResource[]> {
-  return delay(getResourcesForService(serviceId));
+  return getJson<ApmResource[]>(apmEndpoints.resources(serviceId));
 }
 
 export async function fetchApmServiceSummarySeries(
   serviceId: string,
+  range: ApmTimeRange,
 ): Promise<ApmServiceSeries[]> {
-  return delay(getServiceSummarySeries(serviceId));
+  const url = new URL(apmEndpoints.serviceSeries(serviceId));
+  url.searchParams.set("fromMs", String(range.fromMs));
+  url.searchParams.set("toMs", String(range.toMs));
+  const res = await getJson<{
+    service: string;
+    points: ApmServiceSeries["points"];
+  }>(url.toString());
+  return [{ service: res.service, points: res.points }];
 }
 
 export async function fetchApmServiceResourceSeries(
   serviceId: string,
+  range: ApmTimeRange,
 ): Promise<ApmServiceSeries[]> {
-  return delay(getServiceResourceSeries(serviceId));
+  const url = new URL(apmEndpoints.resourcesSeries(serviceId));
+  url.searchParams.set("fromMs", String(range.fromMs));
+  url.searchParams.set("toMs", String(range.toMs));
+  return getJson<ApmServiceSeries[]>(url.toString());
 }
 
-function spanMatchesQuery(span: ApmSpan, q: ApmTracesQuery): boolean {
-  if (q.services.length > 0 && !q.services.includes(span.service)) return false;
-  if (q.statuses.length > 0 && !q.statuses.includes(span.status)) return false;
-  if (q.resources.length > 0 && !q.resources.includes(span.resource))
-    return false;
-  if (q.text.trim().length > 0) {
-    const t = q.text.toLowerCase();
-    const stripped = t.replace(/env:\w+/g, "").trim();
-    if (
-      stripped.length > 0 &&
-      !`${span.service} ${span.resource}`.toLowerCase().includes(stripped)
-    ) {
-      return false;
-    }
-  }
-  return true;
+export async function fetchApmDependencies(): Promise<ApmDependency[]> {
+  return getJson<ApmDependency[]>(apmEndpoints.dependencies);
+}
+
+export async function fetchApmServiceMap(
+  env?: string,
+  lookbackSeconds = 600,
+): Promise<ApmServiceMap> {
+  const url = new URL(apmEndpoints.serviceMap);
+  if (env) url.searchParams.set("env", env);
+  url.searchParams.set("lookbackSeconds", String(lookbackSeconds));
+  return getJson<ApmServiceMap>(url.toString());
+}
+
+function buildSpansBody(query: ApmTracesQuery, range: ApmTimeRange) {
+  // The query bar lets users type `env:prod` etc; pull it out so the backend
+  // can apply env as a column filter rather than scanning the resource text.
+  const envMatch = query.text.match(/env:(\w+)/);
+  const free = query.text.replace(/env:\w+/g, "").trim();
+  return {
+    query: {
+      text: free,
+      services: query.services,
+      statuses: query.statuses,
+      resources: query.resources,
+      env: envMatch?.[1] ?? null,
+    },
+    range: { fromMs: range.fromMs, toMs: range.toMs },
+    limit: 200,
+  };
 }
 
 export async function searchApmSpans(
   query: ApmTracesQuery,
   range: ApmTimeRange,
 ): Promise<ApmSpan[]> {
-  const list = APM_SPANS.filter(
-    (s) =>
-      s.timestampMs >= range.fromMs &&
-      s.timestampMs <= range.toMs &&
-      spanMatchesQuery(s, query),
+  return postJson<ApmSpan[]>(
+    apmEndpoints.spansSearch,
+    buildSpansBody(query, range),
   );
-  return delay(list);
 }
 
 export async function fetchApmFacets(
   query: ApmTracesQuery,
   range: ApmTimeRange,
 ): Promise<ApmFacets> {
-  const inRange = APM_SPANS.filter(
-    (s) => s.timestampMs >= range.fromMs && s.timestampMs <= range.toMs,
+  return postJson<ApmFacets>(
+    apmEndpoints.spansFacets,
+    buildSpansBody(query, range),
   );
+}
 
-  const matching = inRange.filter((s) => spanMatchesQuery(s, query));
+export async function fetchApmTrace(traceId: string): Promise<ApmTraceDetail> {
+  return getJson<ApmTraceDetail>(apmEndpoints.trace(traceId));
+}
 
-  const statusCounts = new Map<ApmSpanStatus, number>();
-  const serviceCounts = new Map<string, number>();
-  const resourceCounts = new Map<string, number>();
-  const envCounts = new Map<string, number>();
-
-  matching.forEach((s) => {
-    statusCounts.set(s.status, (statusCounts.get(s.status) ?? 0) + 1);
-    serviceCounts.set(s.service, (serviceCounts.get(s.service) ?? 0) + 1);
-    resourceCounts.set(s.resource, (resourceCounts.get(s.resource) ?? 0) + 1);
-    envCounts.set("prod", (envCounts.get("prod") ?? 0) + 1);
-  });
-
-  const status = (["ok", "error"] as ApmSpanStatus[]).map((v) => ({
-    value: v,
-    count: statusCounts.get(v) ?? 0,
-  }));
-
-  const sortBy = (a: { count: number }, b: { count: number }) =>
-    b.count - a.count;
-
-  return delay({
-    status,
-    service: Array.from(serviceCounts.entries())
-      .map(([value, count]) => ({ value, count }))
-      .sort(sortBy),
-    resource: Array.from(resourceCounts.entries())
-      .map(([value, count]) => ({ value, count }))
-      .sort(sortBy),
-    env: Array.from(envCounts.entries())
-      .map(([value, count]) => ({ value, count }))
-      .sort(sortBy),
-    total: matching.length,
-  });
+export async function fetchApmRecommendations(
+  type: "all" | "performance" | "reliability" | "cost",
+): Promise<ApmRecommendation[]> {
+  const url = new URL(apmEndpoints.recommendations);
+  if (type !== "all") url.searchParams.set("type", type);
+  return getJson<ApmRecommendation[]>(url.toString());
 }

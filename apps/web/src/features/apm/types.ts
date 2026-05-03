@@ -13,12 +13,86 @@ export type ApmService = {
   health: ApmHealth;
   requestsPerSec: number;
   errorRate: number | null;
+  p50LatencyMs: number;
   p99LatencyMs: number;
   p95LatencyMs: number;
   totalRequests: number;
   totalErrors: number;
   lastDeployMinutesAgo: number | null;
+  team?: string;
+  tier?: number;
+  description?: string;
   starred?: boolean;
+};
+
+export type ApmOperation = {
+  name: string;
+  hits: number;
+  errors: number;
+  p50LatencyMs: number;
+  p95LatencyMs: number;
+  p99LatencyMs: number;
+};
+
+export type ApmDependency = {
+  caller: string;
+  callee: string;
+  kind: "http" | "db" | "cache" | "queue";
+  weight?: number;
+};
+
+export type ApmServiceMapNode = {
+  service: string;
+  type: ApmServiceType;
+  language: string;
+  team?: string;
+  tier?: number;
+  hits: number;
+  errors: number;
+  errorRate: number;
+  rps: number;
+  p95LatencyMs: number;
+};
+
+export type ApmServiceMapEdge = {
+  caller: string;
+  callee: string;
+  calls: number;
+  errors: number;
+  kind?: "http" | "db" | "cache" | "queue";
+};
+
+export type ApmServiceMap = {
+  nodes: ApmServiceMapNode[];
+  edges: ApmServiceMapEdge[];
+};
+
+export type ApmFlameSpan = {
+  spanId: string;
+  parentSpanId: string | null;
+  traceId: string;
+  service: string;
+  operation: string;
+  resource: string;
+  durationMs: number;
+  tsMs: number;
+  status: "ok" | "error";
+  httpMethod: string | null;
+  httpStatus: number | null;
+  host: string | null;
+  env: string;
+  tags: Record<string, string>;
+};
+
+export type ApmTraceDetail = {
+  traceId: string;
+  spans: ApmFlameSpan[];
+  startMs: number;
+  endMs: number;
+  durationMs: number;
+  spanCount: number;
+  errorCount: number;
+  services: string[];
 };
 
 export type ApmSpanStatus = "ok" | "error";
@@ -27,6 +101,10 @@ export type ApmSpanMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | null;
 
 export type ApmSpan = {
   id: string;
+  spanId: string;
+  traceId: string;
+  parentSpanId?: string | null;
+  operation?: string;
   timestampMs: number;
   service: string;
   resource: string;
@@ -34,6 +112,8 @@ export type ApmSpan = {
   method: ApmSpanMethod;
   statusCode: number | null;
   status: ApmSpanStatus;
+  host?: string | null;
+  env?: string;
 };
 
 export type ApmResource = {
@@ -52,6 +132,9 @@ export type ApmTimeSeriesPoint = {
   hits: number;
   errors: number;
   latencyMs: number;
+  p50Ms?: number;
+  p95Ms?: number;
+  p99Ms?: number;
 };
 
 export type ApmServiceSeries = {

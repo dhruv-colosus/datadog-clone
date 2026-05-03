@@ -10,6 +10,7 @@ import {
   GitBranch,
   Globe,
   ListMagnifyingGlass,
+  PuzzlePiece,
   Pulse,
   ShieldCheck,
   Tree,
@@ -25,10 +26,11 @@ type Item = {
 
 const ITEMS: Item[] = [
   { id: "summary", label: "Service Summary", icon: Globe },
+  { id: "operations", label: "Operations", icon: PuzzlePiece },
   { id: "resources", label: "Resources", icon: BracketsCurly },
-  { id: "deployments", label: "Deployments", icon: GitBranch },
   { id: "dependencies", label: "Dependencies", icon: Tree },
   { id: "traces", label: "Traces", icon: Pulse },
+  { id: "deployments", label: "Deployments", icon: GitBranch },
   { id: "errors", label: "Errors", icon: Warning },
   { id: "infrastructure", label: "Infrastructure", icon: Cube },
   { id: "databases", label: "Databases", icon: Database },

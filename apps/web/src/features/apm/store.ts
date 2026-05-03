@@ -185,6 +185,7 @@ export const useApmHomeStore = create<ApmHomeState>((set) => ({
 
 export type ApmServiceDetailTab =
   | "summary"
+  | "operations"
   | "resources"
   | "deployments"
   | "dependencies"

@@ -8,6 +8,7 @@ import {
   SidebarSimple,
   Sigma,
 } from "@phosphor-icons/react";
+import Link from "next/link";
 import { useMemo } from "react";
 import { useApmFacets, useApmSpans } from "../hooks";
 import {
@@ -171,7 +172,7 @@ export function TracesTable() {
           )}
           {spans?.map((span) => (
             <SpanRow
-              key={span.id}
+              key={`${span.traceId}-${span.id}`}
               span={span}
               active={span.id === expandedSpanId}
               onSelect={() =>
@@ -195,9 +196,14 @@ function SpanRow({
   onSelect: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onSelect}
+    <Link
+      href={`/apm/traces/${span.traceId}`}
+      onClick={(e) => {
+        // Modifier-clicks open in a new tab — let those through. A plain
+        // click also navigates (Link default), but we still mark the row
+        // selected so the user sees feedback before the page transitions.
+        if (!e.metaKey && !e.ctrlKey) onSelect();
+      }}
       className={`grid w-full ${COL_GRID} items-center gap-2 border-b border-[#f1f3f4] px-4 py-1 text-left text-[12.5px] transition-colors ${
         active ? "bg-[#e8f0fe]" : "hover:bg-[#f8f9fb]"
       }`}
@@ -230,7 +236,7 @@ function SpanRow({
       <span>
         {span.statusCode ? <StatusCodeBadge code={span.statusCode} /> : null}
       </span>
-    </button>
+    </Link>
   );
 }
 

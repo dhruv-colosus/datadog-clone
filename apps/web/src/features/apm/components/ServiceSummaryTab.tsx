@@ -2,16 +2,20 @@
 
 import { CaretDown, Plus } from "@phosphor-icons/react";
 import { useApmServiceSummarySeries } from "../hooks";
+import { useApmTracesStore } from "../store";
 import type { ApmService } from "../types";
 import { ApmBarChart } from "./ApmBarChart";
 import { ApmLineChart } from "./ApmLineChart";
 
 export function ServiceSummaryTab({ service }: { service: ApmService }) {
-  const { data: series } = useApmServiceSummarySeries(service.id);
+  const range = useApmTracesStore((s) => s.timeRange);
+  const { data: series } = useApmServiceSummarySeries(service.id, range);
   const points = series?.[0]?.points ?? [];
   const hits = points.map((p) => p.hits);
   const errors = points.map((p) => p.errors);
-  const latency = points.map((p) => p.latencyMs);
+  const p50 = points.map((p) => p.p50Ms ?? p.latencyMs * 0.6);
+  const p95 = points.map((p) => p.p95Ms ?? p.latencyMs);
+  const p99 = points.map((p) => p.p99Ms ?? p.latencyMs * 1.2);
   const totalHits = hits.reduce((acc, v) => acc + v, 0);
   const totalErrors = errors.reduce((acc, v) => acc + v, 0);
 
@@ -66,9 +70,9 @@ export function ServiceSummaryTab({ service }: { service: ApmService }) {
         >
           <ApmLineChart
             series={[
-              { id: "p99", color: "#a142f4", values: latency.map((v) => v * 1.4) },
-              { id: "p95", color: "#1a73e8", values: latency },
-              { id: "p50", color: "#fbbc04", values: latency.map((v) => v * 0.6) },
+              { id: "p99", color: "#a142f4", values: p99 },
+              { id: "p95", color: "#1a73e8", values: p95 },
+              { id: "p50", color: "#fbbc04", values: p50 },
             ]}
             formatY={(v) => `${Math.round(v)}`}
           />

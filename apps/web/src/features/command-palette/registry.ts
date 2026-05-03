@@ -176,7 +176,7 @@ export function buildCommandRegistry(): CommandEntry[] {
       context: match?.context ?? r.matchContext,
       icon: match?.icon ?? r.icon,
       section: "recents" as const,
-      href: match?.href,
+      href: match?.href ?? r.fallbackHref,
       keywords: match ? [match.context ?? "", match.href] : [],
     };
   });

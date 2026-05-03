@@ -1,10 +1,25 @@
-"""APM endpoints — match `apps/web/src/features/apm/api.ts`."""
+"""APM endpoints — match `apps/web/src/features/apm/api.ts`.
+
+Endpoint surface (P0 from the APM spec):
+- Service catalog:        GET  /apm/services
+- Service detail:         GET  /apm/services/{name}
+                           - operations:    GET /apm/services/{name}/operations
+                           - resources:     GET /apm/services/{name}/resources
+                           - service ts:    GET /apm/services/{name}/series
+                           - resource ts:   GET /apm/services/{name}/resources-series
+- Dependencies graph:     GET  /apm/dependencies          (static topology edges)
+                           GET  /apm/service-map           (live nodes+edges)
+- Trace search:           POST /apm/spans/search
+                           POST /apm/spans/facets
+- Trace detail (flame):   GET  /apm/traces/{trace_id}
+"""
 
 from __future__ import annotations
 
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 
 from app.auth.dependencies import get_current_user
 from app.auth.models import User
@@ -13,7 +28,6 @@ from app.telemetry.pool import get_pool
 from app.telemetry.topology import (
     DEPENDENCIES,
     SERVICES,
-    callees_of,
     Service,
 )
 
@@ -22,12 +36,13 @@ router = APIRouter(prefix="/apm", tags=["apm"])
 
 
 def _service_to_dict(s: Service, stats: dict[str, Any] | None) -> dict[str, Any]:
-    health = "ok"
     error_rate = stats.get("errorRate") if stats else 0.0
     if error_rate is not None and error_rate > 0.05:
         health = "critical"
     elif error_rate is not None and error_rate > 0.01:
         health = "warn"
+    else:
+        health = "ok"
     return {
         "id": s.name,
         "name": s.name,
@@ -35,14 +50,23 @@ def _service_to_dict(s: Service, stats: dict[str, Any] | None) -> dict[str, Any]
         "language": s.language or "n/a",
         "env": "prod",
         "health": health,
+        "team": s.team,
+        "tier": s.tier,
+        "description": s.description,
         "requestsPerSec": stats["rps"] if stats else 0.0,
         "errorRate": stats["errorRate"] if stats else None,
-        "p99LatencyMs": stats["p99LatencyMs"] if stats else 0.0,
+        "p50LatencyMs": stats["p50LatencyMs"] if stats else 0.0,
         "p95LatencyMs": stats["p95LatencyMs"] if stats else 0.0,
+        "p99LatencyMs": stats["p99LatencyMs"] if stats else 0.0,
         "totalRequests": stats["hits"] if stats else 0,
         "totalErrors": stats["errors"] if stats else 0,
         "lastDeployMinutesAgo": None,
     }
+
+
+# ---------------------------------------------------------------------------
+# Service catalog + detail
+# ---------------------------------------------------------------------------
 
 
 @router.get("/services")
@@ -79,7 +103,9 @@ async def list_operations(
             """
             SELECT operation, COUNT(*) AS hits,
                    SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END) AS errors,
-                   percentile_disc(0.95) WITHIN GROUP (ORDER BY duration_us) AS p95_us
+                   percentile_disc(0.50) WITHIN GROUP (ORDER BY duration_us) AS p50_us,
+                   percentile_disc(0.95) WITHIN GROUP (ORDER BY duration_us) AS p95_us,
+                   percentile_disc(0.99) WITHIN GROUP (ORDER BY duration_us) AS p99_us
             FROM spans
             WHERE service = $1 AND ts >= NOW() - INTERVAL '15 minutes'
             GROUP BY operation ORDER BY hits DESC
@@ -91,7 +117,9 @@ async def list_operations(
             "name": r["operation"],
             "hits": int(r["hits"] or 0),
             "errors": int(r["errors"] or 0),
+            "p50LatencyMs": float(r["p50_us"] or 0) / 1000.0,
             "p95LatencyMs": float(r["p95_us"] or 0) / 1000.0,
+            "p99LatencyMs": float(r["p99_us"] or 0) / 1000.0,
         }
         for r in rows
     ]
@@ -144,14 +172,149 @@ async def get_service_series(
     return {"service": name, "points": pts}
 
 
+@router.get("/services/{name}/resources-series")
+async def get_resource_series(
+    name: str,
+    fromMs: int = Query(...),
+    toMs: int = Query(...),
+    topN: int = Query(default=5, ge=1, le=20),
+    _: User = Depends(get_current_user),
+) -> list[dict[str, Any]]:
+    return await queries.apm_resource_top_series(
+        service=name, from_ms=fromMs, to_ms=toMs, top_n=topN,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Dependencies / service map
+# ---------------------------------------------------------------------------
+
+
 @router.get("/dependencies")
 async def get_dependencies(
     _: User = Depends(get_current_user),
 ) -> list[dict[str, Any]]:
+    """Static topology edges from `topology.py` — used as a fallback when
+    no span traffic has been observed yet (cold-start scenario).
+    """
     return [
         {"caller": d.caller, "callee": d.callee, "kind": d.kind, "weight": d.weight}
         for d in DEPENDENCIES
     ]
+
+
+@router.get("/service-map")
+async def get_service_map(
+    env: str | None = Query(default=None),
+    lookbackSeconds: int = Query(default=600, ge=60, le=86400),
+    _: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Live service map: every service that has emitted spans in the lookback
+    window plus every parent→child edge actually observed in those spans.
+
+    Edges fall back to the static topology when traffic is sparse so the map
+    isn't empty on a freshly seeded DB."""
+    live = await queries.apm_service_map(env=env, lookback_seconds=lookbackSeconds)
+
+    nodes_by_name = {n["service"]: n for n in live["nodes"]}
+    # Always represent every canonical service as a node, even if it had no
+    # traffic — keeps the map shape stable across windows.
+    for s in SERVICES:
+        if s.name not in nodes_by_name:
+            nodes_by_name[s.name] = {
+                "service": s.name,
+                "hits": 0,
+                "errors": 0,
+                "errorRate": 0.0,
+                "rps": 0.0,
+                "p95LatencyMs": 0.0,
+            }
+
+    nodes = []
+    for s in SERVICES:
+        n = nodes_by_name[s.name]
+        nodes.append({
+            **n,
+            "type": s.type,
+            "language": s.language or "n/a",
+            "team": s.team,
+            "tier": s.tier,
+        })
+
+    seen = {(e["caller"], e["callee"]) for e in live["edges"]}
+    edges: list[dict[str, Any]] = list(live["edges"])
+    for d in DEPENDENCIES:
+        if (d.caller, d.callee) not in seen:
+            edges.append({
+                "caller": d.caller,
+                "callee": d.callee,
+                "calls": 0,
+                "errors": 0,
+                "kind": d.kind,
+            })
+        else:
+            for e in edges:
+                if e["caller"] == d.caller and e["callee"] == d.callee:
+                    e["kind"] = d.kind
+                    break
+    return {"nodes": nodes, "edges": edges}
+
+
+# ---------------------------------------------------------------------------
+# Trace explorer — span search + facets + flame graph
+# ---------------------------------------------------------------------------
+
+
+class SpanSearchRange(BaseModel):
+    fromMs: int
+    toMs: int
+
+
+class SpanSearchQuery(BaseModel):
+    text: str = ""
+    services: list[str] = Field(default_factory=list)
+    statuses: list[str] = Field(default_factory=list)
+    resources: list[str] = Field(default_factory=list)
+    env: str | None = None
+
+
+class SpanSearchRequest(BaseModel):
+    query: SpanSearchQuery
+    range: SpanSearchRange
+    limit: int = 200
+
+
+@router.post("/spans/search")
+async def post_spans_search(
+    body: SpanSearchRequest,
+    _: User = Depends(get_current_user),
+) -> list[dict[str, Any]]:
+    return await queries.apm_search_spans(
+        from_ms=body.range.fromMs,
+        to_ms=body.range.toMs,
+        services=body.query.services or None,
+        statuses=body.query.statuses or None,
+        resources=body.query.resources or None,
+        env=body.query.env,
+        free_text=body.query.text,
+        limit=body.limit,
+    )
+
+
+@router.post("/spans/facets")
+async def post_spans_facets(
+    body: SpanSearchRequest,
+    _: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    return await queries.apm_span_facets(
+        from_ms=body.range.fromMs,
+        to_ms=body.range.toMs,
+        services=body.query.services or None,
+        statuses=body.query.statuses or None,
+        resources=body.query.resources or None,
+        env=body.query.env,
+        free_text=body.query.text,
+    )
 
 
 @router.get("/traces/{trace_id}")
@@ -162,7 +325,26 @@ async def get_trace(
     spans = await queries.apm_get_trace(trace_id)
     if not spans:
         raise HTTPException(status_code=404, detail="Trace not found")
-    return {"traceId": trace_id, "spans": spans}
+    # Compute trace-level rollups so the flame-graph header can render
+    # without the client recomputing.
+    t_start = min(s["tsMs"] for s in spans)
+    t_end = max(s["tsMs"] + s["durationMs"] for s in spans)
+    services = sorted({s["service"] for s in spans})
+    return {
+        "traceId": trace_id,
+        "spans": spans,
+        "startMs": t_start,
+        "endMs": t_end,
+        "durationMs": t_end - t_start,
+        "spanCount": len(spans),
+        "errorCount": sum(1 for s in spans if s["status"] == "error"),
+        "services": services,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Recommendations (static fixture; out of P0 scope)
+# ---------------------------------------------------------------------------
 
 
 @router.get("/recommendations")

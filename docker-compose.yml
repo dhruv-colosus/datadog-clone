@@ -15,7 +15,7 @@ services:
       retries: 10
 
   api:
-    image: ghcr.io/${GHCR_OWNER}/datadog-api:${IMAGE_TAG:-latest}
+    image: ghcr.io/${GHCR_OWNER}/datadog-backend:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: apps/api/Dockerfile
@@ -48,7 +48,7 @@ services:
       retries: 5
 
   web:
-    image: ghcr.io/${GHCR_OWNER}/datadog-web:${IMAGE_TAG:-latest}
+    image: ghcr.io/${GHCR_OWNER}/datadog-frontend:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: apps/web/Dockerfile

@@ -1,10 +1,12 @@
 "use client";
 
 import {
+  ArrowSquareOut,
   CaretDoubleLeft,
   CaretDoubleRight,
   CaretDown,
   ChartLineUp,
+  CheckCircle,
   Gear,
   MagnifyingGlassMinus,
   Pause,
@@ -14,9 +16,10 @@ import {
   Square,
   Stack,
   Star,
+  X,
 } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import {
   TimeRangePicker,
@@ -52,6 +55,17 @@ export function DashboardEditor({ dashboardId }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editor, setEditor] = useState<EditorState>({ mode: "closed" });
   const [shareOpen, setShareOpen] = useState(false);
+  const [shareToast, setShareToast] = useState<{
+    url: string;
+    copied: boolean;
+  } | null>(null);
+
+  // Auto-dismiss the share toast after 8 seconds.
+  useEffect(() => {
+    if (!shareToast) return;
+    const t = window.setTimeout(() => setShareToast(null), 8000);
+    return () => window.clearTimeout(t);
+  }, [shareToast]);
 
   if (!dashboard) {
     return (
@@ -198,7 +212,80 @@ export function DashboardEditor({ dashboardId }: Props) {
         open={shareOpen}
         dashboardId={dashboardId}
         onClose={() => setShareOpen(false)}
+        onShared={({ url }) => setShareToast({ url, copied: true })}
       />
+
+      {shareToast && (
+        <ShareSuccessToast
+          url={shareToast.url}
+          copied={shareToast.copied}
+          onCopy={async () => {
+            try {
+              await navigator.clipboard.writeText(shareToast.url);
+              setShareToast({ url: shareToast.url, copied: true });
+            } catch {
+              // clipboard unavailable
+            }
+          }}
+          onDismiss={() => setShareToast(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function ShareSuccessToast({
+  url,
+  copied,
+  onCopy,
+  onDismiss,
+}: {
+  url: string;
+  copied: boolean;
+  onCopy: () => void;
+  onDismiss: () => void;
+}) {
+  return (
+    <div className="pointer-events-none fixed inset-x-0 top-4 z-[1200] flex justify-center px-4">
+      <div className="pointer-events-auto flex w-full max-w-[640px] items-center gap-3 rounded-md border border-[#a7f3d0] bg-[#ecfdf5] px-4 py-2.5 text-[13px] text-[#202124] shadow-lg">
+        <CheckCircle
+          size={18}
+          weight="fill"
+          className="shrink-0 text-[#10b981]"
+        />
+        <div className="min-w-0 flex-1">
+          <div className="font-medium">
+            Dashboard shared{copied ? " — link copied to clipboard" : ""}
+          </div>
+          <div className="truncate text-[12px] text-[#5f6368]" title={url}>
+            {url}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onCopy}
+          className="shrink-0 rounded px-2 py-1 text-[12px] font-medium text-[#1a73e8] hover:bg-white"
+        >
+          {copied ? "Copied" : "Copy"}
+        </button>
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex shrink-0 items-center gap-1 rounded px-2 py-1 text-[12px] font-medium text-[#1a73e8] hover:bg-white"
+        >
+          <ArrowSquareOut size={12} weight="bold" />
+          Open
+        </a>
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label="Dismiss"
+          className="shrink-0 rounded p-1 text-[#5f6368] hover:bg-white"
+        >
+          <X size={12} weight="bold" />
+        </button>
+      </div>
     </div>
   );
 }

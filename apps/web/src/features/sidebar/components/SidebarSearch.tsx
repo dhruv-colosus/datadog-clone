@@ -2,11 +2,16 @@
 
 import { MagnifyingGlass } from "@phosphor-icons/react";
 
+import { useCommandPaletteStore } from "@/features/command-palette";
+
 type SidebarSearchProps = {
   collapsed: boolean;
 };
 
 export function SidebarSearch({ collapsed }: SidebarSearchProps) {
+  const setOpen = useCommandPaletteStore((s) => s.setOpen);
+  const openPalette = () => setOpen(true);
+
   if (collapsed) {
     return (
       <div className="px-3 pb-2 pt-1">
@@ -14,7 +19,7 @@ export function SidebarSearch({ collapsed }: SidebarSearchProps) {
           type="button"
           aria-label="Search (⌘K)"
           className="flex h-10 w-10 items-center justify-center rounded text-sidebar-muted hover:bg-[#171920] hover:text-white"
-          onClick={() => console.log("TODO: open command palette")}
+          onClick={openPalette}
         >
           <MagnifyingGlass size={18} />
         </button>
@@ -27,7 +32,7 @@ export function SidebarSearch({ collapsed }: SidebarSearchProps) {
     <div className="px-2.5 pt-0.5">
       <button
         type="button"
-        onClick={() => console.log("TODO: open command palette")}
+        onClick={openPalette}
         className="flex w-full items-center gap-2 px-1 py-1.5 text-left text-sidebar-muted transition-colors hover:text-white"
       >
         <MagnifyingGlass size={15} />

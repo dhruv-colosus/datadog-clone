@@ -67,6 +67,7 @@ export type DashboardShareConfig = {
 
 export type Dashboard = {
   id: string;
+  serverId?: string;
   name: string;
   kind: DashboardKind;
   icon?: DashboardIcon;

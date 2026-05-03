@@ -14,8 +14,9 @@ import {
   Warning,
   X,
 } from "@phosphor-icons/react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { createDashboard, patchDashboard } from "../api";
 import { useDashboardsStore } from "../store";
 import type {
   DashboardShareSettings,
@@ -27,6 +28,7 @@ type Props = {
   open: boolean;
   dashboardId: string;
   onClose: () => void;
+  onShared?: (result: { url: string }) => void;
 };
 
 type ShareType = "invite" | "public" | "embed";
@@ -55,11 +57,17 @@ const TIMEFRAME_SHORT: Record<ShareTimeframePreset, string> = {
   "1mo": "1mo",
 };
 
-export function ShareDashboardModal({ open, dashboardId, onClose }: Props) {
+export function ShareDashboardModal({
+  open,
+  dashboardId,
+  onClose,
+  onShared,
+}: Props) {
   const dashboard = useDashboardsStore((s) =>
     s.dashboards.find((d) => d.id === dashboardId),
   );
   const setPublicShare = useDashboardsStore((s) => s.setPublicShare);
+  const setServerId = useDashboardsStore((s) => s.setServerId);
 
   const [shareType, setShareType] = useState<ShareType>("public");
   const [acknowledged, setAcknowledged] = useState(false);
@@ -72,7 +80,14 @@ export function ShareDashboardModal({ open, dashboardId, onClose }: Props) {
     url: string;
   } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const bannerRef = useRef<HTMLDivElement | null>(null);
 
+  // Seed form state only when the modal opens. We intentionally do NOT
+  // depend on `dashboard.share.public` — otherwise a successful submit
+  // (which mutates that value via setPublicShare) would re-run this effect
+  // and wipe the confirmation banner before it ever paints.
   useEffect(() => {
     if (!open) return;
     const existing = dashboard?.share?.public;
@@ -84,7 +99,10 @@ export function ShareDashboardModal({ open, dashboardId, onClose }: Props) {
     setTheme(existing?.theme ?? "auto");
     setConfirmation(null);
     setIsSubmitting(false);
-  }, [open, dashboard?.share?.public]);
+    setErrorMessage(null);
+    setCopied(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -95,12 +113,16 @@ export function ShareDashboardModal({ open, dashboardId, onClose }: Props) {
     return () => document.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  const publicUrl = useMemo(() => {
+  const buildPublicUrl = (id: string): string => {
     if (typeof window === "undefined") {
-      return `/public/p/dashboard/${dashboardId}`;
+      return `/public/p/dashboard/${id}`;
     }
-    return `${window.location.origin}/public/p/dashboard/${dashboardId}`;
-  }, [dashboardId]);
+    return `${window.location.origin}/public/p/dashboard/${id}`;
+  };
+
+  const publicUrl = useMemo(() => {
+    return buildPublicUrl(dashboard?.serverId ?? dashboardId);
+  }, [dashboard?.serverId, dashboardId]);
 
   if (!open || !dashboard) return null;
 
@@ -111,9 +133,10 @@ export function ShareDashboardModal({ open, dashboardId, onClose }: Props) {
 
   const canShare = shareType === "public" && acknowledged;
 
-  const submit = () => {
+  const submit = async () => {
     if (!canShare || isSubmitting) return;
     setIsSubmitting(true);
+    setErrorMessage(null);
     const settings: DashboardShareSettings = {
       enabled: true,
       shareName: shareName.trim() || undefined,
@@ -121,17 +144,64 @@ export function ShareDashboardModal({ open, dashboardId, onClose }: Props) {
       allowTimeframeChange,
       theme,
     };
-    window.setTimeout(() => {
+    try {
+      let serverId = dashboard.serverId;
+      if (!serverId) {
+        const created = await createDashboard({
+          name: dashboard.name,
+          kind: dashboard.kind,
+          widgets: dashboard.widgets ?? [],
+          layout: [],
+          template_vars: [],
+          tags: dashboard.teams ?? [],
+          share: { public: settings },
+        });
+        serverId = created.id;
+        setServerId(dashboardId, serverId);
+      } else {
+        await patchDashboard(serverId, { share: { public: settings } });
+      }
+
       setPublicShare(dashboardId, settings);
-      setConfirmation({ url: publicUrl });
+      const url = buildPublicUrl(serverId);
+
+      // Best-effort auto-copy. Don't block close on clipboard permission.
+      try {
+        await navigator.clipboard.writeText(url);
+      } catch {
+        // clipboard may be unavailable; the toast still has a Copy button
+      }
+
+      if (onShared) {
+        onShared({ url });
+        onClose();
+      } else {
+        // Fallback path: no parent toast wired — keep the in-modal banner.
+        setConfirmation({ url });
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 2000);
+        requestAnimationFrame(() => {
+          bannerRef.current?.scrollIntoView({
+            behavior: "smooth",
+            block: "nearest",
+          });
+        });
+      }
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to share dashboard";
+      setErrorMessage(message);
+    } finally {
       setIsSubmitting(false);
-    }, 350);
+    }
   };
 
   const handleCopy = async () => {
     if (!confirmation) return;
     try {
       await navigator.clipboard.writeText(confirmation.url);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
     } catch {
       // ignore — clipboard may be unavailable
     }
@@ -298,14 +368,20 @@ export function ShareDashboardModal({ open, dashboardId, onClose }: Props) {
           </Step>
 
           {confirmation && (
-            <div className="mt-4 flex items-center justify-between rounded-md border border-[#a7f3d0] bg-[#ecfdf5] px-4 py-2 text-[13px] text-[#202124]">
+            <div
+              ref={bannerRef}
+              className="mt-4 flex items-center justify-between rounded-md border border-[#a7f3d0] bg-[#ecfdf5] px-4 py-2 text-[13px] text-[#202124]"
+            >
               <div className="flex min-w-0 items-center gap-2">
                 <CheckCircle
                   size={18}
                   weight="fill"
                   className="shrink-0 text-[#10b981]"
                 />
-                <span className="truncate">Dashboard successfully shared</span>
+                <span className="truncate">
+                  Dashboard successfully shared
+                  {copied ? " — link copied" : ""}
+                </span>
               </div>
               <div className="flex shrink-0 items-center gap-3 text-[#1a73e8]">
                 <button
@@ -313,7 +389,7 @@ export function ShareDashboardModal({ open, dashboardId, onClose }: Props) {
                   onClick={handleCopy}
                   className="hover:underline"
                 >
-                  Copy URL
+                  {copied ? "Copied!" : "Copy URL"}
                 </button>
                 <span className="text-[#bdc1c6]">|</span>
                 <a
@@ -326,6 +402,16 @@ export function ShareDashboardModal({ open, dashboardId, onClose }: Props) {
                   Open Dashboard
                 </a>
               </div>
+            </div>
+          )}
+          {errorMessage && (
+            <div className="mt-4 flex items-start gap-2 rounded-md border border-[#fecaca] bg-[#fef2f2] px-4 py-2 text-[13px] text-[#991b1b]">
+              <Warning
+                size={16}
+                weight="fill"
+                className="mt-0.5 shrink-0 text-[#dc2626]"
+              />
+              <span className="min-w-0 break-words">{errorMessage}</span>
             </div>
           )}
         </div>

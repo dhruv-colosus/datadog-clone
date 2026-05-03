@@ -43,6 +43,7 @@ type DashboardsState = {
   removeWidget: (dashboardId: string, widgetId: string) => void;
   setPublicShare: (id: string, settings: DashboardShareSettings) => void;
   disablePublicShare: (id: string) => void;
+  setServerId: (id: string, serverId: string) => void;
 };
 
 export const useDashboardsStore = create<DashboardsState>()(
@@ -137,6 +138,12 @@ export const useDashboardsStore = create<DashboardsState>()(
                   share: { ...(d.share ?? {}), public: undefined },
                 }
               : d,
+          ),
+        })),
+      setServerId: (id, serverId) =>
+        set((s) => ({
+          dashboards: s.dashboards.map((d) =>
+            d.id === id ? { ...d, serverId } : d,
           ),
         })),
     }),

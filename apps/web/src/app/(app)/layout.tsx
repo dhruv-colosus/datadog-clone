@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
 import { AuthBootstrap } from "@/features/auth";
+import { CommandPalette } from "@/features/command-palette";
 import { Sidebar } from "@/features/sidebar";
 
 type AppLayoutProps = {
@@ -13,6 +14,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
         <Sidebar />
         <main className="flex-1 overflow-auto">{children}</main>
       </div>
+      <CommandPalette />
     </AuthBootstrap>
   );
 }

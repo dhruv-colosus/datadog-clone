@@ -7,7 +7,11 @@ import {
   rangeFromPreset,
   type TimeRange,
 } from "@/components/ui/TimeRangePicker";
-import { useDashboardsHydrated, useDashboardsStore } from "../store";
+import {
+  PublicDashboardNotFoundError,
+  fetchPublicDashboard,
+  type DashboardResponse,
+} from "../api";
 import type { ShareTheme } from "../types";
 import { WidgetView } from "./widget-views";
 
@@ -17,12 +21,38 @@ type Props = {
 
 type ResolvedTheme = "light" | "dark";
 
-export function PublicDashboardView({ dashboardId }: Props) {
-  const dashboard = useDashboardsStore((s) =>
-    s.dashboards.find((d) => d.id === dashboardId),
-  );
-  const hydrated = useDashboardsHydrated();
+type FetchState =
+  | { status: "loading" }
+  | { status: "ok"; data: DashboardResponse }
+  | { status: "not-found" }
+  | { status: "error"; message: string };
 
+export function PublicDashboardView({ dashboardId }: Props) {
+  const [state, setState] = useState<FetchState>({ status: "loading" });
+
+  useEffect(() => {
+    let cancelled = false;
+    setState({ status: "loading" });
+    fetchPublicDashboard(dashboardId)
+      .then((data) => {
+        if (!cancelled) setState({ status: "ok", data });
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        if (err instanceof PublicDashboardNotFoundError) {
+          setState({ status: "not-found" });
+        } else {
+          const message =
+            err instanceof Error ? err.message : "Failed to load dashboard";
+          setState({ status: "error", message });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [dashboardId]);
+
+  const dashboard = state.status === "ok" ? state.data : undefined;
   const share = dashboard?.share?.public;
 
   const [timeRange, setTimeRange] = useState<TimeRange>(() =>
@@ -38,21 +68,31 @@ export function PublicDashboardView({ dashboardId }: Props) {
   const resolvedTheme = useResolvedTheme(share?.theme ?? "auto");
   const isDark = resolvedTheme === "dark";
 
-  if (!hydrated) {
-    return <FullPageLoader isDark={resolvedTheme === "dark"} />;
+  if (state.status === "loading") {
+    return <FullPageLoader isDark={isDark} />;
   }
 
-  if (!dashboard) {
+  if (state.status === "not-found") {
     return (
       <UnavailableView
-        title="Dashboard not found"
-        message="This share link is invalid or the dashboard has been deleted."
+        title="Dashboard is not shared"
+        message="This share link is invalid, the dashboard has been deleted, or public sharing has been disabled."
         isDark={isDark}
       />
     );
   }
 
-  if (!share?.enabled) {
+  if (state.status === "error") {
+    return (
+      <UnavailableView
+        title="Couldn’t load dashboard"
+        message={state.message}
+        isDark={isDark}
+      />
+    );
+  }
+
+  if (!dashboard || !share?.enabled) {
     return (
       <UnavailableView
         title="Dashboard is not shared"

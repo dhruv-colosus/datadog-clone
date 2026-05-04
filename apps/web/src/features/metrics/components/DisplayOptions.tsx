@@ -1,6 +1,7 @@
 "use client";
 
 import { CaretDown } from "@phosphor-icons/react";
+import { forwardRef } from "react";
 import {
   COLOR_PALETTES,
   LINE_STROKES,
@@ -94,17 +95,17 @@ function Separator() {
   return <span className="h-5 w-px bg-[#bdc1c6]" aria-hidden />;
 }
 
-function InlineTrigger({
-  children,
-  onClick,
-  ariaExpanded,
-}: {
-  children: React.ReactNode;
-  onClick?: (e: React.MouseEvent) => void;
-  ariaExpanded?: boolean;
-}) {
+const InlineTrigger = forwardRef<
+  HTMLButtonElement,
+  {
+    children: React.ReactNode;
+    onClick?: (e: React.MouseEvent) => void;
+    ariaExpanded?: boolean;
+  }
+>(function InlineTrigger({ children, onClick, ariaExpanded }, ref) {
   return (
     <button
+      ref={ref}
       type="button"
       onClick={onClick}
       aria-expanded={ariaExpanded}
@@ -114,7 +115,7 @@ function InlineTrigger({
       <CaretDown size={10} weight="bold" className="text-[#5f6368]" />
     </button>
   );
-}
+});
 
 function SimpleDropdown<T extends string>({
   value,

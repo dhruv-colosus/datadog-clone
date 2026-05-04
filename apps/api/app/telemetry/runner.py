@@ -16,6 +16,7 @@ import asyncpg
 from app.core.config import get_settings
 from app.telemetry.generators.logs import iter_lines_for_tick
 from app.telemetry.generators.metrics import iter_points_for_tick
+from app.telemetry.generators.rum import iter_events_for_tick as iter_rum_for_tick
 from app.telemetry.generators.traces import iter_spans_for_tick
 from app.telemetry.pool import get_pool
 from app.telemetry.spike_injector import (
@@ -39,6 +40,18 @@ SPAN_COLUMNS = (
     "resource", "duration_us", "status", "http_method", "http_status",
     "host", "env", "tags",
 )
+RUM_COLUMNS = (
+    "ts", "application_id", "session_id", "view_id", "event_type", "service",
+    "env", "version", "user_id", "user_name", "user_email", "geo_country",
+    "geo_city", "browser_name", "browser_version", "os_name", "device_type",
+    "view_url", "view_path", "view_referrer", "loading_time_ms", "lcp_ms",
+    "fcp_ms", "inp_ms", "cls", "time_spent_ms", "error_message",
+    "error_source", "error_stack", "action_type", "action_name", "resource_url",
+    "resource_method", "resource_status", "resource_duration_ms",
+    "long_task_duration_ms", "session_view_count", "session_action_count",
+    "session_error_count", "session_frustration_count", "session_time_spent_ms",
+    "session_is_active", "attributes",
+)
 
 
 def _seconds_to_dt(t_seconds: float) -> dt.datetime:
@@ -49,8 +62,11 @@ async def write_tick(
     pool: asyncpg.Pool,
     t_seconds: float,
     spike_multipliers: dict[tuple[str, str], float],
-) -> tuple[int, int, int]:
-    """Generate + COPY-insert one tick. Returns (n_metrics, n_logs, n_spans)."""
+) -> tuple[int, int, int, int]:
+    """Generate + COPY-insert one tick.
+
+    Returns (n_metrics, n_logs, n_spans, n_rum_events).
+    """
 
     metric_rows = [
         (
@@ -98,6 +114,54 @@ async def write_tick(
         )
         for s in iter_spans_for_tick(t_seconds)
     ]
+    rum_rows = [
+        (
+            _seconds_to_dt(e.ts_seconds),
+            e.application_id,
+            e.session_id,
+            e.view_id,
+            e.event_type,
+            e.service,
+            e.env,
+            e.version,
+            e.user_id,
+            e.user_name,
+            e.user_email,
+            e.geo_country,
+            e.geo_city,
+            e.browser_name,
+            e.browser_version,
+            e.os_name,
+            e.device_type,
+            e.view_url,
+            e.view_path,
+            e.view_referrer,
+            e.loading_time_ms,
+            e.lcp_ms,
+            e.fcp_ms,
+            e.inp_ms,
+            e.cls,
+            e.time_spent_ms,
+            e.error_message,
+            e.error_source,
+            e.error_stack,
+            e.action_type,
+            e.action_name,
+            e.resource_url,
+            e.resource_method,
+            e.resource_status,
+            e.resource_duration_ms,
+            e.long_task_duration_ms,
+            e.session_view_count,
+            e.session_action_count,
+            e.session_error_count,
+            e.session_frustration_count,
+            e.session_time_spent_ms,
+            e.session_is_active,
+            json.dumps(e.attributes),
+        )
+        for e in iter_rum_for_tick(t_seconds)
+    ]
 
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -113,8 +177,12 @@ async def write_tick(
                 await conn.copy_records_to_table(
                     "spans", records=span_rows, columns=SPAN_COLUMNS
                 )
+            if rum_rows:
+                await conn.copy_records_to_table(
+                    "rum_events", records=rum_rows, columns=RUM_COLUMNS
+                )
 
-    return len(metric_rows), len(log_rows), len(span_rows)
+    return len(metric_rows), len(log_rows), len(span_rows), len(rum_rows)
 
 
 async def runner_loop() -> None:
@@ -135,13 +203,13 @@ async def runner_loop() -> None:
             await maybe_inject_auto_spikes(now)
             await registry.reap_done(pool, now)
             multipliers = await registry.multipliers(now)
-            n_m, n_l, n_s = await write_tick(pool, t_seconds, multipliers)
+            n_m, n_l, n_s, n_r = await write_tick(pool, t_seconds, multipliers)
             elapsed_ms = int((time.perf_counter() - started) * 1000)
             tick_index += 1
             if tick_index % 12 == 1:  # log every minute
                 logger.info(
-                    "telemetry.runner: tick=%d metrics=%d logs=%d spans=%d %dms",
-                    tick_index, n_m, n_l, n_s, elapsed_ms,
+                    "telemetry.runner: tick=%d metrics=%d logs=%d spans=%d rum=%d %dms",
+                    tick_index, n_m, n_l, n_s, n_r, elapsed_ms,
                 )
         except Exception:  # noqa: BLE001
             logger.exception("telemetry.runner: tick failed; will continue")

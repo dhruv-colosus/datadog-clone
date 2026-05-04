@@ -12,7 +12,7 @@ import {
 import { useCommandPaletteStore } from "./store";
 
 type Group = {
-  key: "RECENTS" | "ACTIONS";
+  key: "RECENTS" | "PAGES" | "ACTIONS";
   label: string;
   entries: CommandEntry[];
 };
@@ -47,11 +47,17 @@ export function CommandPalette() {
     const recents = registry.filter(
       (e) => e.section === "recents" && fuzzyMatch(e, query),
     );
+    // Only show the full PAGES list when the user is searching — empty-state
+    // keeps the palette focused on RECENTS + ACTIONS.
+    const pages = query
+      ? registry.filter((e) => e.section === "pages" && fuzzyMatch(e, query))
+      : [];
     const actions = registry.filter(
       (e) => e.section === "actions" && fuzzyMatch(e, query),
     );
     const out: Group[] = [];
     if (recents.length) out.push({ key: "RECENTS", label: "RECENTS", entries: recents });
+    if (pages.length) out.push({ key: "PAGES", label: "PAGES", entries: pages });
     if (actions.length) out.push({ key: "ACTIONS", label: "ACTIONS", entries: actions });
     return out;
   }, [registry, query]);

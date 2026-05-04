@@ -98,7 +98,7 @@ export function ServiceResourcesTab({ service }: { service: ApmService }) {
         <span className="inline-flex items-center gap-1 rounded bg-[#e8eaed] px-1.5 py-0.5 text-[12px] text-[#5f6368]">
           {"{}"}
         </span>
-        Resources
+        Endpoints
       </h2>
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
@@ -160,7 +160,7 @@ export function ServiceResourcesTab({ service }: { service: ApmService }) {
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search Resources"
+                placeholder="Search Endpoints"
                 className="w-full bg-transparent text-[12.5px] text-[#202124] placeholder:text-[#5f6368] focus:outline-none"
               />
             </div>
@@ -183,7 +183,7 @@ export function ServiceResourcesTab({ service }: { service: ApmService }) {
                   active={sortKey === "name"}
                   onClick={() => setSortKey("name")}
                 >
-                  Resource Name
+                  Endpoint
                 </SortHeader>
                 <th className="px-3 py-2 text-left">Frontend Views</th>
                 <SortHeader

@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ArrowsCounterClockwise,
   Article,
   ChartBar,
   ChartDonut,
@@ -53,6 +54,7 @@ const WIDGET_ICON_MAP: Record<
   "alert-graph": TrendUp,
   "alert-value": Square,
   "check-status": ChartDonut,
+  change: ArrowsCounterClockwise,
   group: SquaresFour,
   powerpack: TreeStructure,
   note: Note,

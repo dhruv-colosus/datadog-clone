@@ -347,6 +347,25 @@ async def get_trace(
 # ---------------------------------------------------------------------------
 
 
+@router.get("/watchdog")
+async def list_watchdog(
+    lookbackHours: int = Query(default=48, ge=1, le=168),
+    _: User = Depends(get_current_user),
+) -> list[dict[str, Any]]:
+    """APM Watchdog anomalies — error-rate spikes per (service, resource)."""
+    return await queries.apm_watchdog_anomalies(lookback_hours=lookbackHours)
+
+
+@router.get("/issues")
+async def list_issues(
+    lookbackSeconds: int = Query(default=3600, ge=60, le=86400),
+    limit: int = Query(default=20, ge=1, le=100),
+    _: User = Depends(get_current_user),
+) -> list[dict[str, Any]]:
+    """APM Issues — error spans aggregated by (service, resource)."""
+    return await queries.apm_issues(lookback_seconds=lookbackSeconds, limit=limit)
+
+
 @router.get("/recommendations")
 async def list_recommendations(
     type: str | None = Query(default=None),

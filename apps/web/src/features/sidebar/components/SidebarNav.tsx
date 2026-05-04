@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Fragment } from "react";
 import { ArrowSquareOut, Plus } from "@phosphor-icons/react";
 import {
+  isRouteAvailable,
   navSections,
   type FlyoutBadge,
   type FlyoutGroup,
@@ -61,11 +62,28 @@ function NavRow({
   active: boolean;
 }) {
   const Icon = item.icon;
-  const stateClasses = active
-    ? "text-white hover:bg-[#171920]"
-    : "text-sidebar-muted hover:bg-[#171920] hover:text-white";
+  const available = isRouteAvailable(item.href);
+  const stateClasses = !available
+    ? "text-sidebar-muted/50 cursor-not-allowed hover:bg-[#171920]"
+    : active
+      ? "text-white hover:bg-[#171920]"
+      : "text-sidebar-muted hover:bg-[#171920] hover:text-white";
 
   if (collapsed) {
+    if (!available) {
+      return (
+        <li>
+          <span
+            title={`${item.label} (coming soon)`}
+            aria-label={`${item.label} (coming soon)`}
+            aria-disabled="true"
+            className={`mx-auto flex h-10 w-10 items-center justify-center rounded transition-colors ${stateClasses}`}
+          >
+            <Icon size={18} weight="regular" />
+          </span>
+        </li>
+      );
+    }
     return (
       <li>
         <Link
@@ -80,15 +98,29 @@ function NavRow({
     );
   }
 
+  const rowClass = `flex items-center gap-2.5 rounded px-2 py-1 transition-colors ${stateClasses}`;
+  const rowContent = (
+    <>
+      <Icon size={16} weight={active && available ? "fill" : "regular"} />
+      <span className="truncate text-[12.5px]">{item.label}</span>
+    </>
+  );
+
   return (
     <li className="group/row relative">
-      <Link
-        href={item.href}
-        className={`flex items-center gap-2.5 rounded px-2 py-1 transition-colors ${stateClasses}`}
-      >
-        <Icon size={16} weight={active ? "fill" : "regular"} />
-        <span className="truncate text-[12.5px]">{item.label}</span>
-      </Link>
+      {available ? (
+        <Link href={item.href} className={rowClass}>
+          {rowContent}
+        </Link>
+      ) : (
+        <span
+          aria-disabled="true"
+          title={`${item.label} (coming soon)`}
+          className={rowClass}
+        >
+          {rowContent}
+        </span>
+      )}
       {item.flyout && item.flyout.length > 0 && (
         <FlyoutPanel groups={item.flyout} />
       )}
@@ -125,7 +157,18 @@ function FlyoutSection({
   return (
     <div>
       <div className="flex items-center gap-2 px-4">
-        <h3 className="text-[13px] font-semibold text-white">{group.heading}</h3>
+        {group.href && isRouteAvailable(group.href) ? (
+          <Link
+            href={group.href}
+            className="text-[13px] font-semibold text-white hover:text-blue-300"
+          >
+            {group.heading}
+          </Link>
+        ) : (
+          <h3 className="text-[13px] font-semibold text-white">
+            {group.heading}
+          </h3>
+        )}
         {group.badge && <Badge kind={group.badge} />}
       </div>
       {group.emptyState && !hasPrimary && !hasSecondary && (
@@ -179,10 +222,13 @@ function SubItemRow({
   item: FlyoutSubItem;
   active: boolean;
 }) {
+  const available = isRouteAvailable(item.href);
   const className = `flex w-full items-center gap-1.5 rounded-sm px-2 py-1 text-left text-[12.5px] transition-colors ${
     active
       ? "bg-[#1a73e8] text-white"
-      : "text-sidebar-muted hover:bg-white/10 hover:text-white"
+      : available
+        ? "text-sidebar-muted hover:bg-white/10 hover:text-white"
+        : "text-sidebar-muted/50 cursor-not-allowed"
   }`;
 
   const content = (
@@ -191,7 +237,13 @@ function SubItemRow({
         <Plus
           size={12}
           weight="bold"
-          className={`shrink-0 ${active ? "text-white" : "text-blue-400"}`}
+          className={`shrink-0 ${
+            active
+              ? "text-white"
+              : available
+                ? "text-blue-400"
+                : "text-blue-400/40"
+          }`}
         />
       ) : null}
       <span className="truncate">{item.label}</span>
@@ -207,7 +259,7 @@ function SubItemRow({
     </>
   );
 
-  if (item.href) {
+  if (available && item.href) {
     return (
       <Link href={item.href} className={className}>
         {content}
@@ -216,9 +268,9 @@ function SubItemRow({
   }
 
   return (
-    <button type="button" className={className}>
+    <span aria-disabled="true" className={className}>
       {content}
-    </button>
+    </span>
   );
 }
 

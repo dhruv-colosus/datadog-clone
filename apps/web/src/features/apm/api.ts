@@ -1,6 +1,7 @@
 import type {
   ApmDependency,
   ApmFacets,
+  ApmIssue,
   ApmOperation,
   ApmRecommendation,
   ApmResource,
@@ -11,6 +12,7 @@ import type {
   ApmTimeRange,
   ApmTraceDetail,
   ApmTracesQuery,
+  ApmWatchdogAnomaly,
 } from "./types";
 
 const API_URL =
@@ -30,6 +32,8 @@ export const apmEndpoints = {
   spansFacets: `${API_URL}/apm/spans/facets`,
   trace: (id: string) => `${API_URL}/apm/traces/${id}`,
   recommendations: `${API_URL}/apm/recommendations`,
+  watchdog: `${API_URL}/apm/watchdog`,
+  issues: `${API_URL}/apm/issues`,
 };
 
 async function getJson<T>(url: string): Promise<T> {
@@ -166,4 +170,20 @@ export async function fetchApmRecommendations(
   const url = new URL(apmEndpoints.recommendations);
   if (type !== "all") url.searchParams.set("type", type);
   return getJson<ApmRecommendation[]>(url.toString());
+}
+
+export async function fetchApmWatchdog(
+  lookbackHours = 48,
+): Promise<ApmWatchdogAnomaly[]> {
+  const url = new URL(apmEndpoints.watchdog);
+  url.searchParams.set("lookbackHours", String(lookbackHours));
+  return getJson<ApmWatchdogAnomaly[]>(url.toString());
+}
+
+export async function fetchApmIssues(
+  lookbackSeconds = 3600,
+): Promise<ApmIssue[]> {
+  const url = new URL(apmEndpoints.issues);
+  url.searchParams.set("lookbackSeconds", String(lookbackSeconds));
+  return getJson<ApmIssue[]>(url.toString());
 }

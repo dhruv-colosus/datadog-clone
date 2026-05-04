@@ -34,6 +34,11 @@ class WidgetModel(BaseModel):
     title: str
     queries: list[WidgetQueryModel] = Field(default_factory=list)
     display: str | None = None
+    # Per-widget visualization config — schemaless on purpose so the front-end
+    # can evolve widget options (Query Value precision, Top List sort, Heatmap
+    # axis, Change compareTo, Distribution buckets, etc) without coordinated
+    # backend changes. Stored verbatim inside the dashboards.widgets JSONB.
+    config: dict[str, Any] | None = None
     createdAt: int
 
 

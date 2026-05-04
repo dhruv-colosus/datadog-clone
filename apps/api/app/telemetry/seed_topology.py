@@ -12,6 +12,7 @@ import logging
 
 import asyncpg
 
+from app.rum.topology import APPLICATIONS as RUM_APPLICATIONS
 from app.telemetry.pool import get_pool
 from app.telemetry.topology import (
     DEPENDENCIES,
@@ -44,7 +45,8 @@ async def _truncate_topology(conn: asyncpg.Connection) -> None:
             metric_catalog,
             tag_catalog,
             log_templates,
-            operations
+            operations,
+            rum_applications
         """
     )
 
@@ -117,14 +119,18 @@ async def _seed(conn: asyncpg.Connection) -> None:
     for h in HOSTS:
         for p in processes_for_host(h):
             process_rows.append(
-                (p.host_id, p.pid, p.command, p.parent_pid, p.started_seconds_ago)
+                (
+                    p.host_id, p.pid, p.command, p.parent_pid,
+                    p.started_seconds_ago, p.cpu_percent, p.rss_mib,
+                )
             )
     if process_rows:
         await conn.executemany(
             """
             INSERT INTO topology_processes
-                (host_id, pid, command, parent_pid, started_seconds_ago)
-            VALUES ($1, $2, $3, $4, $5)
+                (host_id, pid, command, parent_pid, started_seconds_ago,
+                 cpu_percent, rss_mib)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
             """,
             process_rows,
         )
@@ -187,6 +193,17 @@ async def _seed(conn: asyncpg.Connection) -> None:
             for o in OPERATIONS
         ],
     )
+    # RUM applications
+    await conn.executemany(
+        """
+        INSERT INTO rum_applications (id, name, type, service, env, client_token)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        """,
+        [
+            (a.id, a.name, a.type, a.service, a.env, a.client_token)
+            for a in RUM_APPLICATIONS
+        ],
+    )
 
 
 async def reseed_topology() -> dict[str, int]:
@@ -202,14 +219,34 @@ async def reseed_topology() -> dict[str, int]:
 
 
 async def seed_if_empty() -> dict[str, int] | None:
-    """Run once on lifespan startup if the services table is empty."""
+    """Run once on lifespan startup if the services table is empty.
+
+    Also tops up the `rum_applications` table when older deployments seeded
+    topology but predate the RUM migration.
+    """
     pool = await get_pool()
     async with pool.acquire() as conn:
-        row = await conn.fetchrow("SELECT 1 FROM topology_services LIMIT 1")
-        if row is not None:
-            return None
-        async with conn.transaction():
-            await _seed(conn)
-    summary = topology_summary()
-    logger.info("telemetry.seed_topology: initial seed %s", summary)
-    return summary
+        topology_row = await conn.fetchrow("SELECT 1 FROM topology_services LIMIT 1")
+        rum_row = await conn.fetchrow("SELECT 1 FROM rum_applications LIMIT 1")
+        if topology_row is None:
+            async with conn.transaction():
+                await _seed(conn)
+            summary = topology_summary()
+            logger.info("telemetry.seed_topology: initial seed %s", summary)
+            return summary
+        if rum_row is None:
+            await conn.executemany(
+                """
+                INSERT INTO rum_applications (id, name, type, service, env, client_token)
+                VALUES ($1, $2, $3, $4, $5, $6)
+                """,
+                [
+                    (a.id, a.name, a.type, a.service, a.env, a.client_token)
+                    for a in RUM_APPLICATIONS
+                ],
+            )
+            logger.info(
+                "telemetry.seed_topology: backfilled %d rum_applications row(s)",
+                len(RUM_APPLICATIONS),
+            )
+        return None

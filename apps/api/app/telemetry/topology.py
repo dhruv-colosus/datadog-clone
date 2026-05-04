@@ -161,7 +161,35 @@ class Host:
 
 def _build_hosts() -> tuple[Host, ...]:
     """Deterministic 50-host fixture. Stable across restarts."""
-    out: list[Host] = []
+    out: list[Host] = [
+        # Pinned host that the frontend's mock HostList opens by default.
+        # Keeps the host detail panel functional against real DB data.
+        Host(
+            id="saas-clone-staging",
+            hostname="saas-clone-staging",
+            role="api",
+            service="api",
+            env="staging",
+            region="nyc3",
+            availability_zone="nyc3-1a",
+            os="linux",
+            cpu_cores=8,
+            memory_gb=16.0,
+            filesystem_gb=336.0,
+            ip_address="142.93.203.175",
+            ipv6_address="2604:a880:400:d1:0:4:47aa:e001",
+            mac_address="7e:32:76:42:85:bc",
+            kernel_release="6.8.0-110-generic",
+            kernel_version="#110-Ubuntu SMP PREEMPT_DYNAMIC Thu Mar 19 15:09:20 UTC 2026",
+            docker_version="29.4.0",
+            agent_version="7.78.2",
+            apps=("system", "agent", "container", "docker"),
+            kube_cluster_name=None,
+            kube_namespace=None,
+            version="v1.5.0",
+            team="platform",
+        ),
+    ]
     role_to_service: dict[str, str | None] = {
         "edge": "caddy",
         "web": "web",
@@ -289,7 +317,7 @@ def _build_hosts() -> tuple[Host, ...]:
                 team="platform",
             )
         )
-    return tuple(out[:50])
+    return tuple(out[:51])
 
 
 HOSTS: tuple[Host, ...] = _build_hosts()
@@ -324,6 +352,8 @@ class Process:
     command: str
     parent_pid: int | None
     started_seconds_ago: int
+    cpu_percent: float
+    rss_mib: int
 
 
 _DEFAULT_CONTAINERS_BY_ROLE: dict[str, tuple[tuple[str, str], ...]] = {
@@ -372,34 +402,143 @@ def containers_for_host(host: Host) -> list[Container]:
     return out
 
 
-_PROCESS_TEMPLATES_BY_ROLE: dict[str, tuple[str, ...]] = {
-    "edge": ("caddy run --config /etc/caddy/Caddyfile", "datadog-agent run"),
-    "web": ("node /app/server.js", "datadog-agent run"),
-    "api": (
-        "uvicorn app.main:app --host 0.0.0.0 --port 8000",
-        "datadog-agent run",
-        "alembic upgrade head",
+# (command, baseline_rss_mib, baseline_cpu_percent)
+ProcessTemplate = tuple[str, int, float]
+
+_BASELINE_PROCESSES: tuple[ProcessTemplate, ...] = (
+    ("systemd --system --deserialize=72", 13, 0.0),
+    ("systemd-journald", 56, 0.0),
+    ("systemd-resolved", 11, 0.0),
+    ("systemd-networkd", 9, 0.0),
+    ("systemd-logind", 8, 0.0),
+    ("systemd-udevd", 7, 0.0),
+    ("dbus-daemon --system --address=systemd: --nofork", 6, 0.0),
+    ("cron -f", 4, 0.0),
+    ("rsyslogd -n", 5, 0.0),
+    ("sshd: /usr/sbin/sshd -D", 9, 0.0),
+    ("multipathd -d -s", 27, 0.0),
+    ("fwupd", 68, 0.0),
+    ("polkitd --no-debug", 12, 0.0),
+    ("agent run -p /opt/datadog-agent/run/agent.pid", 129, 0.4),
+    (
+        "trace-agent --config /etc/datadog-agent/datadog.yaml "
+        "--pidfile /opt/datadog-agent/run/trace-agent.pid",
+        54,
+        0.3,
     ),
-    "auth": ("node /app/index.js", "datadog-agent run"),
-    "payments": ("/app/payments serve --port 8080", "datadog-agent run"),
-    "worker": ("python -m app.worker", "datadog-agent run"),
-    "db": ("postgres -D /var/lib/postgresql/data", "datadog-agent run"),
-    "cache": ("redis-server /etc/redis/redis.conf", "datadog-agent run"),
+    (
+        "process-agent --config=/etc/datadog-agent/datadog.yaml "
+        "--pid=/opt/datadog-agent/run/process-agent.pid",
+        46,
+        0.2,
+    ),
+    (
+        "installer run -c /etc/datadog-agent "
+        "-p /opt/datadog-agent/run/installer.pid",
+        29,
+        0.0,
+    ),
+    ("python3 -u bin/WALinuxAgent-2.15.1.3-py3.12.egg -run-exthandlers", 31, 0.1),
+)
+
+_ROLE_PROCESSES: dict[str, tuple[ProcessTemplate, ...]] = {
+    "edge": (
+        ("caddy run --config /etc/caddy/Caddyfile --adapter caddyfile", 64, 0.6),
+        ("nginx: master process /usr/sbin/nginx", 14, 0.0),
+        ("nginx: worker process", 11, 0.0),
+        ("nginx: worker process", 11, 0.0),
+    ),
+    "web": (
+        ("next-server (v15.3.8)", 197, 0.6),
+        ("node /app/.next/standalone/server.js", 142, 0.4),
+        ("PM2 v6.0.8: God Daemon (/home/azureuser/.pm2)", 74, 0.0),
+        ("node /app/node_modules/next/dist/server/lib/start-server.js", 88, 0.3),
+    ),
+    "api": (
+        (
+            "python -m uvicorn app.main:app --host 0.0.0.0 --port 8080 --workers 2",
+            31,
+            0.5,
+        ),
+        (
+            "python -c from multiprocessing.spawn import spawn_main; "
+            "spawn_main(tracker_fd=16, pipe_handle=22)",
+            379,
+            0.4,
+        ),
+        (
+            "python -c from multiprocessing.spawn import spawn_main; "
+            "spawn_main(tracker_fd=16, pipe_handle=18)",
+            372,
+            0.3,
+        ),
+        (
+            "python -c from multiprocessing.resource_tracker import main;main(15)",
+            27,
+            0.0,
+        ),
+        ("alembic upgrade head", 22, 0.0),
+    ),
+    "auth": (
+        ("node /app/dist/index.js", 156, 0.5),
+        ("node --inspect=0.0.0.0:9229 /app/dist/worker.js", 88, 0.2),
+    ),
+    "payments": (
+        ("/app/payments serve --port 8080 --config /etc/payments/config.yaml", 96, 0.4),
+        ("/app/payments worker --queue settlement", 64, 0.2),
+    ),
+    "worker": (
+        ("python -m app.worker --concurrency 4", 184, 0.7),
+        ("python -m celery -A app.tasks worker --loglevel=info", 142, 0.5),
+        ("python -m celery -A app.tasks beat", 56, 0.1),
+    ),
+    "db": (
+        ("postgres -D /var/lib/postgresql/data -c config_file=/etc/postgresql/postgresql.conf", 224, 0.8),
+        ("postgres: checkpointer", 32, 0.1),
+        ("postgres: background writer", 28, 0.0),
+        ("postgres: walwriter", 22, 0.0),
+        ("postgres: autovacuum launcher", 18, 0.0),
+        ("postgres: logical replication launcher", 16, 0.0),
+        ("postgres: stats collector", 14, 0.0),
+    ),
+    "cache": (
+        ("redis-server 127.0.0.1:6379", 12, 0.2),
+        ("redis-sentinel *:26379 [sentinel]", 9, 0.0),
+    ),
 }
 
 
 def processes_for_host(host: Host) -> list[Process]:
-    base = _PROCESS_TEMPLATES_BY_ROLE.get(host.role, ("datadog-agent run",))
-    started_offset = (hash(host.id) % 30000) + 1000
+    """Build a deterministic, role-shaped process list for a host.
+
+    Combines a fixed system baseline (systemd, datadog-agent, kernel daemons)
+    with role-specific workload processes. PIDs and resource usage are derived
+    from the host id so reseeds are stable.
+    """
+    seed = abs(hash(host.id))
+    role_procs = _ROLE_PROCESSES.get(host.role, ())
+    templates = (*_BASELINE_PROCESSES, *role_procs)
+    started_offset = (seed % 30000) + 1000
     out: list[Process] = []
-    for idx, cmd in enumerate(base):
+    for idx, (cmd, baseline_rss, baseline_cpu) in enumerate(templates):
+        # Deterministic per-process jitter so two hosts of the same role
+        # don't show identical numbers.
+        jitter = ((seed >> (idx % 16)) & 0xFF) / 255.0  # 0..1
+        rss = max(1, int(baseline_rss * (0.85 + 0.3 * jitter)))
+        cpu = round(baseline_cpu * (0.7 + 0.6 * jitter), 2)
+        # systemd is always pid 1; everything else gets a stable pseudo-pid.
+        pid = 1 if cmd.startswith("systemd --system") else (
+            1000 + idx * 137 + (seed % 90000)
+        )
         out.append(
             Process(
                 host_id=host.id,
-                pid=1000 + idx * 11 + (hash(host.id) % 7000),
+                pid=pid,
                 command=cmd,
-                parent_pid=1,
+                parent_pid=None if pid == 1 else 1,
                 started_seconds_ago=started_offset + idx * 300,
+                cpu_percent=cpu,
+                rss_mib=rss,
             )
         )
     return out

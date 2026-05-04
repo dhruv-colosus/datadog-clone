@@ -98,6 +98,14 @@ async def post_metric_series(
             ],
             group_by=q.groupBy,
             alias=q.alias,
+            functions=[
+                queries.MetricFunctionStep(
+                    kind=f.kind,
+                    method=f.method,
+                    interval_seconds=f.intervalSeconds,
+                )
+                for f in q.functions
+            ],
         )
         series = await queries.query_metric_series(
             spec=spec,

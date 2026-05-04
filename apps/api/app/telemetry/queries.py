@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import datetime as dt
 import json
-from dataclasses import dataclass
+import math
+from dataclasses import dataclass, field
 from typing import Any, Iterable
 
 from app.telemetry.parser import ParsedQuery, parse
@@ -43,6 +44,21 @@ class MetricFilter:
 
 
 @dataclass
+class MetricFunctionStep:
+    """A function to apply to each series after SQL aggregation.
+
+    Mirrors the frontend `FunctionStep` discriminator: `kind` is one of
+    rate | derivative | rollup | as_count | as_rate | cumulative_sum |
+    integral | abs | log2 | log10. `method`/`interval_seconds` are only
+    populated for rollup.
+    """
+
+    kind: str
+    method: str | None = None
+    interval_seconds: int | None = None
+
+
+@dataclass
 class MetricQuerySpec:
     id: str
     metric_name: str
@@ -50,6 +66,7 @@ class MetricQuerySpec:
     filters: list[MetricFilter]
     group_by: list[str]
     alias: str = ""
+    functions: list[MetricFunctionStep] = field(default_factory=list)
 
 
 _PROMOTED_TAG_COLUMNS = {"host", "service", "env", "name"}
@@ -80,6 +97,103 @@ def _group_expr(g: str) -> str:
     if g in _PROMOTED_TAG_COLUMNS:
         return g
     return f"(tags ->> '{g}')"
+
+
+def _apply_function(
+    points: list[tuple[int, float]],
+    fn: MetricFunctionStep,
+) -> list[tuple[int, float]]:
+    """Apply one function step to a series. Mirrors Datadog semantics.
+
+    Pure: takes (t_ms, value) pairs and returns transformed pairs. Functions
+    that need the time delta (rate/derivative/integral) compute it from the
+    timestamps directly so they remain correct after a `rollup` reshapes the
+    bucket spacing earlier in the chain.
+    """
+    if not points:
+        return points
+
+    if fn.kind in ("rate", "derivative"):
+        # dy/dt per second between consecutive points; first point drops out.
+        out: list[tuple[int, float]] = []
+        for i in range(1, len(points)):
+            t_prev, v_prev = points[i - 1]
+            t_now, v_now = points[i]
+            dt_s = max(1e-9, (t_now - t_prev) / 1000.0)
+            out.append((t_now, (v_now - v_prev) / dt_s))
+        return out
+
+    if fn.kind == "rollup":
+        interval_s = max(1, fn.interval_seconds or 60)
+        method = fn.method or "avg"
+        bucket_ms = interval_s * 1000
+        buckets: dict[int, list[float]] = {}
+        for t, v in points:
+            b = (t // bucket_ms) * bucket_ms
+            buckets.setdefault(b, []).append(v)
+        out = []
+        for b in sorted(buckets):
+            vals = buckets[b]
+            if method == "sum":
+                out.append((b, sum(vals)))
+            elif method == "min":
+                out.append((b, min(vals)))
+            elif method == "max":
+                out.append((b, max(vals)))
+            elif method == "count":
+                out.append((b, float(len(vals))))
+            else:  # avg (default)
+                out.append((b, sum(vals) / len(vals)))
+        return out
+
+    if fn.kind == "cumulative_sum":
+        out = []
+        running = 0.0
+        for t, v in points:
+            running += v
+            out.append((t, running))
+        return out
+
+    if fn.kind == "integral":
+        # Trapezoidal integral over time, in seconds.
+        out = []
+        running = 0.0
+        for i in range(1, len(points)):
+            t_prev, v_prev = points[i - 1]
+            t_now, v_now = points[i]
+            dt_s = (t_now - t_prev) / 1000.0
+            running += 0.5 * (v_prev + v_now) * dt_s
+            out.append((t_now, running))
+        return out
+
+    if fn.kind == "abs":
+        return [(t, abs(v)) for t, v in points]
+
+    if fn.kind == "log2":
+        return [(t, math.log2(v)) for t, v in points if v > 0]
+
+    if fn.kind == "log10":
+        return [(t, math.log10(v)) for t, v in points if v > 0]
+
+    # as_count / as_rate are no-ops here — they only affect how the storage
+    # backend interprets the underlying counter, which our schema doesn't
+    # distinguish. Pass through unchanged so the function pill still shows.
+    return points
+
+
+def _decorate_label(base_label: str, functions: list[MetricFunctionStep]) -> str:
+    """Wrap label with applied functions, e.g. derivative(avg:foo{*})."""
+    label = base_label
+    for fn in functions:
+        if fn.kind == "rollup":
+            interval = fn.interval_seconds or 60
+            method = fn.method or "avg"
+            label = f"rollup({label}, {method}, {interval})"
+        elif fn.kind == "cumulative_sum":
+            label = f"cumsum({label})"
+        else:
+            label = f"{fn.kind}({label})"
+    return label
 
 
 async def query_metric_series(
@@ -139,7 +253,12 @@ async def query_metric_series(
             label_parts = [f"{k}:{v}" for k, v in group_tags.items()]
         else:
             label_parts = ["*"]
-        label = f"{spec.aggregator}:{spec.metric_name}{{{','.join(label_parts)}}}"
+        base_label = (
+            f"{spec.aggregator}:{spec.metric_name}{{{','.join(label_parts)}}}"
+        )
+        for fn in spec.functions:
+            pts = _apply_function(pts, fn)
+        label = _decorate_label(base_label, spec.functions)
         series.append({
             "queryId": spec.id,
             "alias": spec.alias or spec.id,
@@ -149,10 +268,13 @@ async def query_metric_series(
         })
     if not series:
         # Empty result: send back a single empty series so the chart can render
+        empty_label = _decorate_label(
+            f"{spec.aggregator}:{spec.metric_name}{{*}}", spec.functions
+        )
         series.append({
             "queryId": spec.id,
             "alias": spec.alias or spec.id,
-            "label": f"{spec.aggregator}:{spec.metric_name}{{*}}",
+            "label": empty_label,
             "groupTags": {},
             "points": [],
         })
@@ -847,25 +969,41 @@ async def logs_transactions(
 async def apm_service_stats(*, env: str | None = None, lookback_seconds: int = 600) -> list[dict[str, Any]]:
     """Per-service rps/error/p50/p95/p99 over the last `lookback_seconds`.
 
-    Only counts entry spans (parent_span_id IS NULL) so a single trace doesn't
-    double-count when it has internal child spans on the same service.
+    Counts spans that represent entries into the service: a span where the
+    parent is NULL (root) or where the parent span lives on a different
+    service (cross-service hop). This avoids double-counting internal child
+    spans within the same service while still surfacing downstream services
+    like postgres / redis / auth that never have null-parent spans.
     """
     pool = await get_pool()
-    where = ["ts >= NOW() - $1", "parent_span_id IS NULL"]
-    params: list[Any] = [dt.timedelta(seconds=lookback_seconds)]
+    # Use a concrete timestamp parameter rather than `NOW() - INTERVAL` so
+    # asyncpg can infer the type unambiguously when $1 is referenced inside
+    # the NOT EXISTS subquery on the same hypertable.
+    cutoff = dt.datetime.now(dt.timezone.utc) - dt.timedelta(seconds=lookback_seconds)
+    where = ["s.ts >= $1"]
+    params: list[Any] = [cutoff]
     if env:
         params.append(env)
-        where.append(f"env = ${len(params)}")
+        where.append(f"s.env = ${len(params)}")
+    where.append(
+        "(s.parent_span_id IS NULL OR NOT EXISTS ("
+        "  SELECT 1 FROM spans p"
+        "   WHERE p.trace_id = s.trace_id"
+        "     AND p.span_id = s.parent_span_id"
+        "     AND p.service = s.service"
+        "     AND p.ts >= $1"
+        "))"
+    )
     where_sql = " AND ".join(where)
 
     sql = f"""
         SELECT
             s.service,
             COUNT(*) AS hits,
-            SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END) AS errors,
-            percentile_disc(0.50) WITHIN GROUP (ORDER BY duration_us) AS p50_us,
-            percentile_disc(0.95) WITHIN GROUP (ORDER BY duration_us) AS p95_us,
-            percentile_disc(0.99) WITHIN GROUP (ORDER BY duration_us) AS p99_us
+            SUM(CASE WHEN s.status = 1 THEN 1 ELSE 0 END) AS errors,
+            percentile_disc(0.50) WITHIN GROUP (ORDER BY s.duration_us) AS p50_us,
+            percentile_disc(0.95) WITHIN GROUP (ORDER BY s.duration_us) AS p95_us,
+            percentile_disc(0.99) WITHIN GROUP (ORDER BY s.duration_us) AS p99_us
         FROM spans s
         WHERE {where_sql}
         GROUP BY s.service
@@ -900,15 +1038,21 @@ async def apm_service_series(
     step = step_seconds or _step_seconds(from_ms, to_ms)
     sql = f"""
         SELECT
-            time_bucket('{step} seconds'::interval, ts) AS b,
+            time_bucket('{step} seconds'::interval, s.ts) AS b,
             COUNT(*) AS hits,
-            SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END) AS errors,
-            percentile_disc(0.50) WITHIN GROUP (ORDER BY duration_us) AS p50_us,
-            percentile_disc(0.95) WITHIN GROUP (ORDER BY duration_us) AS p95_us,
-            percentile_disc(0.99) WITHIN GROUP (ORDER BY duration_us) AS p99_us
-        FROM spans
-        WHERE service = $1 AND ts >= $2 AND ts < $3
-          AND parent_span_id IS NULL
+            SUM(CASE WHEN s.status = 1 THEN 1 ELSE 0 END) AS errors,
+            percentile_disc(0.50) WITHIN GROUP (ORDER BY s.duration_us) AS p50_us,
+            percentile_disc(0.95) WITHIN GROUP (ORDER BY s.duration_us) AS p95_us,
+            percentile_disc(0.99) WITHIN GROUP (ORDER BY s.duration_us) AS p99_us
+        FROM spans s
+        WHERE s.service = $1 AND s.ts >= $2 AND s.ts < $3
+          AND (s.parent_span_id IS NULL OR NOT EXISTS (
+              SELECT 1 FROM spans p
+              WHERE p.trace_id = s.trace_id
+                AND p.span_id = s.parent_span_id
+                AND p.service = s.service
+                AND p.ts >= $2 AND p.ts < $3
+          ))
         GROUP BY b ORDER BY b
     """
     async with pool.acquire() as conn:
@@ -1268,6 +1412,116 @@ async def apm_get_trace(trace_id: str) -> list[dict[str, Any]]:
     ]
 
 
+async def apm_watchdog_anomalies(*, lookback_hours: int = 48) -> list[dict[str, Any]]:
+    """Detect APM error-rate anomalies as 5-minute buckets where error rate
+    exceeded 10% of bucket traffic. Returns one entry per (service, resource)
+    spike, sorted most-recent-first, with a 16-point sparkline of error rate
+    over the lookback window."""
+    pool = await get_pool()
+    bucket = 300  # 5 minutes
+    cutoff = dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=lookback_hours)
+    sql = f"""
+        WITH buckets AS (
+            SELECT
+                time_bucket('{bucket} seconds'::interval, ts) AS b,
+                service, resource,
+                COUNT(*) AS hits,
+                SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END) AS errs
+            FROM spans
+            WHERE ts >= $1
+            GROUP BY b, service, resource
+        )
+        SELECT b, service, resource, hits, errs,
+               (errs::float8 / NULLIF(hits, 0)) AS rate
+        FROM buckets
+        WHERE errs > 0 AND hits >= 3 AND (errs::float8 / hits) >= 0.10
+        ORDER BY b DESC
+        LIMIT 20
+    """
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(sql, cutoff)
+    if not rows:
+        return []
+
+    # Build a 16-point sparkline of overall error rate over the window
+    points_sql = f"""
+        SELECT time_bucket('{bucket} seconds'::interval, ts) AS b,
+               COUNT(*) AS hits,
+               SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END) AS errs
+        FROM spans
+        WHERE ts >= $1
+        GROUP BY b ORDER BY b
+    """
+    async with pool.acquire() as conn:
+        prows = await conn.fetch(points_sql, cutoff)
+    points = [
+        {
+            "t": int(r["b"].timestamp() * 1000),
+            "hits": int(r["hits"] or 0),
+            "errors": int(r["errs"] or 0),
+            "rate": (float(r["errs"]) / float(r["hits"])) if r["hits"] else 0.0,
+        }
+        for r in prows
+    ]
+
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        peak = float(r["rate"] or 0.0)
+        out.append({
+            "id": f"wd_{int(r['b'].timestamp())}_{r['service']}_{abs(hash(r['resource'])) % 10000}",
+            "kind": "APM ERROR RATE",
+            "status": "resolved",
+            "title": f"Error rate increased on the {r['resource']} resource",
+            "service": r["service"],
+            "resource": r["resource"],
+            "startedMs": int(r["b"].timestamp() * 1000),
+            "endedMs": int(r["b"].timestamp() * 1000) + bucket * 1000,
+            "peakRate": peak,
+            "hits": int(r["hits"] or 0),
+            "errors": int(r["errs"] or 0),
+            "points": points,
+        })
+    return out
+
+
+async def apm_issues(*, lookback_seconds: int = 3600, limit: int = 20) -> list[dict[str, Any]]:
+    """Aggregate error spans by (service, resource) over the lookback window.
+    Used by the APM home Issues panel. Returns most recent error timestamp
+    plus error count per issue."""
+    pool = await get_pool()
+    cutoff = dt.datetime.now(dt.timezone.utc) - dt.timedelta(seconds=lookback_seconds)
+    sql = """
+        SELECT
+            service,
+            resource,
+            COUNT(*) AS error_count,
+            MAX(ts) AS last_seen,
+            MIN(ts) AS first_seen,
+            COALESCE(MAX(http_status), 0) AS http_status
+        FROM spans
+        WHERE ts >= $1 AND status = 1
+        GROUP BY service, resource
+        ORDER BY error_count DESC, last_seen DESC
+        LIMIT $2
+    """
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(sql, cutoff, limit)
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        last = r["last_seen"]
+        first = r["first_seen"]
+        out.append({
+            "id": f"iss_{r['service']}_{abs(hash(r['resource'])) % 100000}",
+            "service": r["service"],
+            "resource": r["resource"],
+            "errorCount": int(r["error_count"] or 0),
+            "lastSeenMs": int(last.timestamp() * 1000) if last else None,
+            "firstSeenMs": int(first.timestamp() * 1000) if first else None,
+            "httpStatus": int(r["http_status"] or 0) or None,
+        })
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Infrastructure
 # ---------------------------------------------------------------------------
@@ -1354,8 +1608,10 @@ async def host_processes(host_id: str) -> list[dict[str, Any]]:
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            "SELECT pid, command, parent_pid, started_seconds_ago "
-            "FROM topology_processes WHERE host_id = $1 ORDER BY pid",
+            "SELECT pid, command, parent_pid, started_seconds_ago, "
+            "       cpu_percent, rss_mib "
+            "FROM topology_processes WHERE host_id = $1 "
+            "ORDER BY rss_mib DESC, pid",
             host_id,
         )
     return [
@@ -1364,6 +1620,8 @@ async def host_processes(host_id: str) -> list[dict[str, Any]]:
             "command": r["command"],
             "parentPid": r["parent_pid"],
             "startedSecondsAgo": r["started_seconds_ago"],
+            "cpuPercent": float(r["cpu_percent"]),
+            "rssMib": r["rss_mib"],
         }
         for r in rows
     ]

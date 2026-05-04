@@ -31,6 +31,7 @@ export type FlyoutSubItem = {
 
 export type FlyoutGroup = {
   heading: string;
+  href?: string;
   badge?: FlyoutBadge;
   primary?: FlyoutSubItem[];
   secondary?: FlyoutSubItem[];
@@ -45,6 +46,37 @@ export type NavItem = {
 };
 
 export type NavSection = NavItem[];
+
+const VALID_ROUTES = new Set<string>([
+  "/",
+  "/apm",
+  "/apm/home",
+  "/apm/service-map",
+  "/apm/services",
+  "/apm/traces",
+  "/dashboard",
+  "/dashboard/lists",
+  "/infrastructure",
+  "/infrastructure/map",
+  "/logs",
+  "/metric/explore",
+  "/metrics",
+  "/monitors/create",
+  "/monitors/manage",
+  "/notebook/list",
+  "/rum",
+  "/rum/explorer",
+  "/rum/session-replay",
+  "/rum/summary",
+  "/slo/create",
+  "/slo/manage",
+]);
+
+export function isRouteAvailable(href: string | undefined): boolean {
+  if (!href) return false;
+  const path = href.split("?")[0].split("#")[0];
+  return VALID_ROUTES.has(path);
+}
 
 export const navSections: NavSection[] = [
   [
@@ -104,9 +136,10 @@ export const navSections: NavSection[] = [
         },
         {
           heading: "Notebooks",
+          href: "/notebook/list",
           primary: [
-            { label: "Notebooks List" },
-            { label: "New Notebook", isCreate: true },
+            { label: "Notebooks List", href: "/notebook/list" },
+            { label: "New Notebook", href: "/notebook/list", isCreate: true },
           ],
         },
         {
@@ -137,7 +170,13 @@ export const navSections: NavSection[] = [
           ],
           secondary: [{ label: "Settings" }],
         },
-        { heading: "SLOs" },
+        {
+          heading: "SLOs",
+          primary: [
+            { label: "Manage SLOs", href: "/slo/manage" },
+            { label: "New SLO", href: "/slo/create", isCreate: true },
+          ],
+        },
         { heading: "Check Summary" },
         {
           heading: "Event Management",
@@ -333,20 +372,25 @@ export const navSections: NavSection[] = [
         },
         {
           heading: "Real User Monitoring",
+          href: "/rum/summary",
           primary: [
-            { label: "Summary" },
-            { label: "Explorer" },
-            { label: "Optimization" },
-            { label: "Manage Applications" },
+            { label: "Summary", href: "/rum/summary" },
+            { label: "Explorer", href: "/rum/explorer" },
+            { label: "Optimization", href: "/rum/summary" },
+            { label: "Manage Applications", href: "/rum/summary" },
             { label: "Generate Metrics" },
             { label: "Sensitive Data Scanner" },
             { label: "Feature Flag Tracking" },
-            { label: "Error Tracking" },
+            { label: "Error Tracking", href: "/rum/summary" },
           ],
         },
         {
           heading: "Session Replay",
-          primary: [{ label: "Recordings" }, { label: "Playlists" }],
+          href: "/rum/session-replay",
+          primary: [
+            { label: "Recordings", href: "/rum/session-replay" },
+            { label: "Playlists", href: "/rum/session-replay?tab=playlists" },
+          ],
         },
         { heading: "Product Analytics", badge: "NEW" },
         { heading: "Starred Saved Views", emptyState: "No starred saved views" },
@@ -468,7 +512,7 @@ export const navSections: NavSection[] = [
             { label: "Explorer", href: "/logs" },
             { label: "Archive Search" },
             { label: "Live Tail" },
-            { label: "Notebooks" },
+            { label: "Notebooks", href: "/notebook/list" },
           ],
         },
         {

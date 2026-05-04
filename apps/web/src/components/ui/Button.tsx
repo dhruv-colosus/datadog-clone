@@ -42,15 +42,15 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   connector:
     "border border-transparent bg-[#f1f3f4] text-[#5f6368] hover:bg-[#e8eaed]",
   primary:
-    "border border-transparent bg-[#7c3aed] text-white hover:bg-[#6d28d9]",
+    "border border-transparent bg-[#006CC2] text-white hover:bg-[#0058a3]",
   ghost:
     "border border-transparent bg-transparent text-[#5f6368] hover:bg-[#f1f3f4] hover:text-[#202124]",
 };
 
 const ACTIVE_CLASSES: Partial<Record<ButtonVariant, string>> = {
   outline:
-    "border-[#a8b3be] bg-[#e8f0fe] text-[#1a73e8] hover:bg-[#d2e3fc] hover:text-[#1a73e8]",
-  pill: "border-[#a8b3be] bg-[#e8f0fe] text-[#1a73e8] hover:bg-[#d2e3fc]",
+    "border-[#a8b3be] bg-[#e6f1f9] text-[#006CC2] hover:bg-[#d2e7f4] hover:text-[#006CC2]",
+  pill: "border-[#a8b3be] bg-[#e6f1f9] text-[#006CC2] hover:bg-[#d2e7f4]",
   ghost: "bg-[#f1f3f4] text-[#202124]",
 };
 

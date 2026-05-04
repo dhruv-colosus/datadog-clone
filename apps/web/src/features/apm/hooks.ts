@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   fetchApmDependencies,
   fetchApmFacets,
+  fetchApmIssues,
   fetchApmOperations,
   fetchApmRecommendations,
   fetchApmResources,
@@ -13,6 +14,7 @@ import {
   fetchApmServiceSummarySeries,
   fetchApmServices,
   fetchApmTrace,
+  fetchApmWatchdog,
   searchApmSpans,
 } from "./api";
 import type { ApmTimeRange, ApmTracesQuery } from "./types";
@@ -54,6 +56,10 @@ export const apmKeys = {
   serviceMap: (env: string, lookback: number) =>
     ["apm", "service-map", env, lookback] as const,
   trace: (id: string) => ["apm", "trace", id] as const,
+  watchdog: (lookbackHours: number) =>
+    ["apm", "watchdog", lookbackHours] as const,
+  issues: (lookbackSeconds: number) =>
+    ["apm", "issues", lookbackSeconds] as const,
 };
 
 export function useApmServices(env: string) {
@@ -163,5 +169,21 @@ export function useApmTrace(traceId: string) {
     queryFn: () => fetchApmTrace(traceId),
     staleTime: 60_000,
     enabled: Boolean(traceId),
+  });
+}
+
+export function useApmWatchdog(lookbackHours = 48) {
+  return useQuery({
+    queryKey: apmKeys.watchdog(lookbackHours),
+    queryFn: () => fetchApmWatchdog(lookbackHours),
+    staleTime: 60_000,
+  });
+}
+
+export function useApmIssues(lookbackSeconds = 3600) {
+  return useQuery({
+    queryKey: apmKeys.issues(lookbackSeconds),
+    queryFn: () => fetchApmIssues(lookbackSeconds),
+    staleTime: 60_000,
   });
 }

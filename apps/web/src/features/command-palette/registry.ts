@@ -26,16 +26,27 @@ const EXISTING_ROUTES = new Set<string>([
   "/",
   "/apm",
   "/apm/home",
+  "/apm/service-map",
+  "/apm/traces",
   "/dashboard",
   "/dashboard/lists",
   "/infrastructure",
   "/infrastructure/map",
+  "/logs",
   "/metric/explore",
-  "/monitors/manage",
+  "/metrics",
   "/monitors/create",
+  "/monitors/manage",
+  "/notebook/list",
+  "/rum",
+  "/rum/explorer",
+  "/rum/session-replay",
+  "/rum/summary",
+  "/slo/create",
+  "/slo/manage",
 ]);
 
-export type CommandSection = "recents" | "actions";
+export type CommandSection = "recents" | "pages" | "actions";
 
 export type CommandEntry = {
   id: string;
@@ -126,18 +137,20 @@ const ACTIONS: CommandEntry[] = [
   },
 ];
 
+type SidebarIndexEntry = {
+  label: string;
+  context?: string;
+  href: string;
+  icon: Icon;
+};
+
 /**
  * Walks the sidebar nav config and returns a flat list of every page
  * that has an explicit `href` (top-level item or flyout sub-item).
  * Used as the search index AND as the source of truth for recents.
  */
-function buildSidebarIndex(): Array<{
-  label: string;
-  context?: string;
-  href: string;
-  icon: Icon;
-}> {
-  const out: Array<{ label: string; context?: string; href: string; icon: Icon }> = [];
+function buildSidebarIndex(): SidebarIndexEntry[] {
+  const out: SidebarIndexEntry[] = [];
 
   for (const section of navSections) {
     for (const item of section) {
@@ -181,7 +194,28 @@ export function buildCommandRegistry(): CommandEntry[] {
     };
   });
 
-  return [...recents, ...ACTIONS];
+  // PAGES — every sidebar entry that points at a real, scaffolded route.
+  // De-dupe against RECENTS by href so the same page does not appear twice.
+  const recentHrefs = new Set(recents.map((r) => r.href).filter(Boolean));
+  const seenHref = new Set<string>();
+  const pages: CommandEntry[] = [];
+  for (const s of sidebarIndex) {
+    if (!routeExists(s.href)) continue;
+    if (recentHrefs.has(s.href)) continue;
+    if (seenHref.has(s.href)) continue;
+    seenHref.add(s.href);
+    pages.push({
+      id: `page-${s.href}`,
+      label: s.label,
+      context: s.context,
+      icon: s.icon,
+      section: "pages",
+      href: s.href,
+      keywords: [s.context ?? "", s.href],
+    });
+  }
+
+  return [...recents, ...pages, ...ACTIONS];
 }
 
 /** Convenience metadata icon for the "Recents" header chip. */

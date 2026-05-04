@@ -1,9 +1,5 @@
 import {
-  ALL_TAG_KEYS,
   MOCK_DASHBOARDS,
-  MOCK_METRICS,
-  generateMockSeries,
-  getValuesForTag,
 } from "./mock-data";
 import type {
   Dashboard,
@@ -25,49 +21,77 @@ export const metricsEndpoints = {
   saveWidget: `${API_URL}/dashboards/widgets`,
 };
 
-const ARTIFICIAL_DELAY_MS = 120;
-
-function delay<T>(value: T, ms = ARTIFICIAL_DELAY_MS): Promise<T> {
-  return new Promise((resolve) => setTimeout(() => resolve(value), ms));
+async function jsonOrThrow<T>(res: Response, label: string): Promise<T> {
+  if (!res.ok) {
+    let detail = "";
+    try {
+      const body = await res.json();
+      detail = body?.detail ? ` — ${body.detail}` : "";
+    } catch {
+      // ignore
+    }
+    throw new Error(`${label} failed: ${res.status} ${res.statusText}${detail}`);
+  }
+  return res.json() as Promise<T>;
 }
 
 export async function fetchMetricNames(prefix?: string): Promise<string[]> {
-  const lower = prefix?.toLowerCase() ?? "";
-  const list = lower
-    ? MOCK_METRICS.filter((m) => m.toLowerCase().includes(lower))
-    : MOCK_METRICS;
-  return delay(list.slice(0, 50));
+  const url = new URL(metricsEndpoints.metricNames);
+  if (prefix) url.searchParams.set("prefix", prefix);
+  const res = await fetch(url.toString(), { credentials: "include" });
+  return jsonOrThrow<string[]>(res, "GET /metrics/names");
 }
 
-export async function fetchTagKeys(_metricName: string): Promise<string[]> {
-  return delay(ALL_TAG_KEYS);
+export async function fetchTagKeys(metricName: string): Promise<string[]> {
+  const url = new URL(metricsEndpoints.tagKeys);
+  if (metricName) url.searchParams.set("metric", metricName);
+  const res = await fetch(url.toString(), { credentials: "include" });
+  return jsonOrThrow<string[]>(res, "GET /metrics/tag-keys");
 }
 
 export async function fetchTagValues(
-  _metricName: string,
+  metricName: string,
   tag: string,
 ): Promise<string[]> {
-  return delay(getValuesForTag(tag));
+  const url = new URL(metricsEndpoints.tagValues);
+  url.searchParams.set("tag", tag);
+  if (metricName) url.searchParams.set("metric", metricName);
+  const res = await fetch(url.toString(), { credentials: "include" });
+  return jsonOrThrow<string[]>(res, "GET /metrics/tag-values");
 }
 
 export async function fetchMetricSeries(
   query: MetricQuery,
   range: TimeRange,
 ): Promise<Series[]> {
-  return delay(generateMockSeries(query, range));
+  const res = await fetch(metricsEndpoints.series, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      queries: [query],
+      range: {
+        preset: range.preset,
+        fromMs: range.fromMs,
+        toMs: range.toMs,
+      },
+    }),
+  });
+  return jsonOrThrow<Series[]>(res, "POST /metrics/series");
 }
 
 export async function fetchDashboards(): Promise<Dashboard[]> {
-  return delay(MOCK_DASHBOARDS);
+  // Dashboards listing for the metrics save-widget flow remains a thin local
+  // shim — the dedicated dashboards/api.ts covers the authoritative CRUD path.
+  return MOCK_DASHBOARDS;
 }
 
 export async function saveWidgetToDashboard(
   widget: Omit<SavedWidget, "id" | "createdAt">,
 ): Promise<SavedWidget> {
-  const created: SavedWidget = {
+  return {
     ...widget,
     id: `w_${Math.random().toString(36).slice(2, 10)}`,
     createdAt: Date.now(),
   };
-  return delay(created);
 }

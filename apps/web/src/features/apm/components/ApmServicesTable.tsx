@@ -45,9 +45,9 @@ export function ApmServicesTable() {
   const setEnv = useApmHomeStore((s) => s.setEnvFilter);
   const search = useApmHomeStore((s) => s.serviceSearch);
   const setSearch = useApmHomeStore((s) => s.setServiceSearch);
-  const [sortKey, setSortKey] = useState<"requests" | "errors" | "p99">(
-    "requests",
-  );
+  const [sortKey, setSortKey] = useState<
+    "requests" | "errors" | "p50" | "p95" | "p99"
+  >("requests");
   const { data: services } = useApmServices(env);
 
   const filtered = useMemo<ApmService[]>(() => {
@@ -65,6 +65,10 @@ export function ApmServicesTable() {
           (b.errorRate ?? -1) - (a.errorRate ?? -1) ||
           b.totalErrors - a.totalErrors,
       );
+    else if (sortKey === "p50")
+      sorted.sort((a, b) => b.p50LatencyMs - a.p50LatencyMs);
+    else if (sortKey === "p95")
+      sorted.sort((a, b) => b.p95LatencyMs - a.p95LatencyMs);
     else sorted.sort((a, b) => b.p99LatencyMs - a.p99LatencyMs);
     return sorted;
   }, [services, search, sortKey]);
@@ -113,7 +117,7 @@ export function ApmServicesTable() {
       </header>
 
       <div className="overflow-x-auto">
-        <table className="min-w-[820px] w-full text-[13px]">
+        <table className="min-w-[1040px] w-full text-[13px]">
           <thead>
             <tr className="border-b border-[#e8eaed] text-[11px] font-semibold uppercase tracking-wide text-[#5f6368]">
               <th className="w-8 px-3 py-2 text-left">
@@ -147,11 +151,41 @@ export function ApmServicesTable() {
                   Error Rate
                 </button>
               </th>
+              <th className="w-[110px] px-3 py-2 text-left">
+                <button
+                  type="button"
+                  onClick={() => setSortKey("p50")}
+                  className={
+                    sortKey === "p50"
+                      ? "text-[#202124]"
+                      : "hover:text-[#202124]"
+                  }
+                >
+                  P50 Latency
+                </button>
+              </th>
+              <th className="w-[110px] px-3 py-2 text-left">
+                <button
+                  type="button"
+                  onClick={() => setSortKey("p95")}
+                  className={
+                    sortKey === "p95"
+                      ? "text-[#202124]"
+                      : "hover:text-[#202124]"
+                  }
+                >
+                  P95 Latency
+                </button>
+              </th>
               <th className="w-[140px] px-3 py-2 text-left">
                 <button
                   type="button"
                   onClick={() => setSortKey("p99")}
-                  className="hover:text-[#202124]"
+                  className={
+                    sortKey === "p99"
+                      ? "text-[#202124]"
+                      : "hover:text-[#202124]"
+                  }
                 >
                   P99 Latency
                 </button>
@@ -169,7 +203,7 @@ export function ApmServicesTable() {
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-[#5f6368]">
+                <td colSpan={10} className="px-4 py-8 text-center text-[#5f6368]">
                   No services match the current filters.
                 </td>
               </tr>
@@ -255,6 +289,16 @@ function ServiceRow({
                 : "#1a73e8"
             }
           />
+        </div>
+      </td>
+      <td className="px-3 py-2.5">
+        <div className="text-[#202124]">
+          {formatLatency(service.p50LatencyMs)}
+        </div>
+      </td>
+      <td className="px-3 py-2.5">
+        <div className="text-[#202124]">
+          {formatLatency(service.p95LatencyMs)}
         </div>
       </td>
       <td className="px-3 py-2.5">

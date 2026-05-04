@@ -8,6 +8,7 @@ import { ContainersTab } from "./ContainersTab";
 import { HostInfoTab } from "./HostInfoTab";
 import { AgentIcon, OsIcon } from "./HostStatusIcons";
 import { MetricsTab } from "./MetricsTab";
+import { ProcessesTab } from "./ProcessesTab";
 
 const TABS: { id: HostInfoTabId; label: string }[] = [
   { id: "host-info", label: "Host Info" },
@@ -116,9 +117,11 @@ export function HostDetailPanel() {
         {activeTab === "host-info" && <HostInfoTab host={host} />}
         {activeTab === "metrics" && <MetricsTab host={host} />}
         {activeTab === "containers" && <ContainersTab host={host} />}
+        {activeTab === "processes" && <ProcessesTab host={host} />}
         {activeTab !== "host-info" &&
           activeTab !== "metrics" &&
-          activeTab !== "containers" && (
+          activeTab !== "containers" &&
+          activeTab !== "processes" && (
             <div className="flex h-full items-center justify-center text-[13px] text-[#5f6368]">
               {TABS.find((t) => t.id === activeTab)?.label} view coming soon.
             </div>

@@ -58,6 +58,31 @@ export function Popover({
       top = r.top - offset;
       left = r.right;
     }
+    const margin = 8;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const panelW = panelRef.current?.offsetWidth ?? 0;
+    const panelH = panelRef.current?.offsetHeight ?? 0;
+    const isEnd = placement === "bottom-end" || placement === "top-end";
+    const isTop = placement === "top-start" || placement === "top-end";
+    const effectiveLeft = isEnd ? left - panelW : left;
+    const effectiveTop = isTop ? top - panelH : top;
+    if (panelW > 0) {
+      if (effectiveLeft + panelW > vw - margin) {
+        left += vw - margin - (effectiveLeft + panelW);
+      }
+      if (effectiveLeft < margin) {
+        left += margin - effectiveLeft;
+      }
+    }
+    if (panelH > 0) {
+      if (effectiveTop + panelH > vh - margin) {
+        top = Math.max(margin + (isTop ? panelH : 0), vh - margin - panelH + (isTop ? panelH : 0));
+      }
+      if (effectiveTop < margin) {
+        top = margin + (isTop ? panelH : 0);
+      }
+    }
     setCoords({ top, left });
     if (matchTriggerWidth) setWidth(r.width);
   };
@@ -146,7 +171,9 @@ export function Popover({
               left: coords.left,
               transform: combinedTransform,
               minWidth: width ?? undefined,
-              zIndex: 1000,
+              // Above WidgetEditorModal (z-[1200]) and other dialogs (z-[1100])
+              // so popovers triggered from inside a modal render on top.
+              zIndex: 1300,
             }}
             className={`rounded-md border border-[#bdc1c6] bg-white shadow-lg ${panelClassName}`}
           >

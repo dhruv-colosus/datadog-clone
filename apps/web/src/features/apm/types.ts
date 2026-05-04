@@ -185,6 +185,38 @@ export type ApmRecommendation = {
   description: string;
 };
 
+export type ApmWatchdogPoint = {
+  t: number;
+  hits: number;
+  errors: number;
+  rate: number;
+};
+
+export type ApmWatchdogAnomaly = {
+  id: string;
+  kind: string;
+  status: "active" | "resolved";
+  title: string;
+  service: string;
+  resource: string;
+  startedMs: number;
+  endedMs: number;
+  peakRate: number;
+  hits: number;
+  errors: number;
+  points: ApmWatchdogPoint[];
+};
+
+export type ApmIssue = {
+  id: string;
+  service: string;
+  resource: string;
+  errorCount: number;
+  lastSeenMs: number | null;
+  firstSeenMs: number | null;
+  httpStatus: number | null;
+};
+
 export type ApmTracesVisualization =
   | "list"
   | "timeseries"

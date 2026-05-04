@@ -11,6 +11,9 @@ from app.health.router import router as health_router
 from app.infra.router import router as infra_router
 from app.logs.router import router as logs_router
 from app.monitors.router import router as monitors_router
+from app.notebooks.router import router as notebooks_router
+from app.rum.router import router as rum_router
+from app.slos.router import router as slos_router
 from app.telemetry.router import router as metrics_router
 from app.views.router import router as views_router
 
@@ -25,4 +28,7 @@ api_router.include_router(infra_router)
 api_router.include_router(dashboards_router)
 api_router.include_router(dashboards_public_router)
 api_router.include_router(monitors_router)
+api_router.include_router(notebooks_router)
+api_router.include_router(rum_router)
+api_router.include_router(slos_router)
 api_router.include_router(views_router)

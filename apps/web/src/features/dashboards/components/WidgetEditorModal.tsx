@@ -33,17 +33,36 @@ import {
   type TimeRange,
 } from "@/components/ui/TimeRangePicker";
 import { useDashboardsStore, newWidgetId, newQueryId } from "../store";
-import type { TimeseriesDisplay, Widget, WidgetQuery, WidgetType } from "../types";
+import {
+  defaultChangeConfig,
+  defaultDistributionConfig,
+  defaultHeatmapConfig,
+  defaultQueryValueConfig,
+  defaultTopListConfig,
+  type ChangeConfig,
+  type DistributionConfig,
+  type HeatmapConfig,
+  type QueryValueConfig,
+  type TimeseriesDisplay,
+  type TopListConfig,
+  type Widget,
+  type WidgetConfig,
+  type WidgetQuery,
+  type WidgetType,
+} from "../types";
 import { WidgetQueryRow } from "./WidgetQueryRow";
 import { WidgetView } from "./widget-views";
 
 type Props = {
   open: boolean;
-  dashboardId: string;
+  /** Required when persisting through the dashboards store (default mode). Omit when using `onSave`. */
+  dashboardId?: string;
   initialType: WidgetType;
   /** When set, edits an existing widget rather than creating a new one. */
   editingWidget?: Widget;
   onClose: () => void;
+  /** Optional override — when provided, persistence happens via this callback instead of the dashboards store. */
+  onSave?: (widget: Widget) => void;
 };
 
 type VizOption = {
@@ -55,15 +74,15 @@ type VizOption = {
 
 const VISUALIZATIONS: VizOption[] = [
   { type: "timeseries", label: "Timeseries", icon: ChartLine, enabled: true },
-  { type: "unsupported", label: "Query Value", icon: Square, enabled: false },
+  { type: "query_value", label: "Query Value", icon: Square, enabled: true },
   { type: "table", label: "Table", icon: TableIcon, enabled: true },
-  { type: "unsupported", label: "Heatmap", icon: Thermometer, enabled: false },
+  { type: "heatmap", label: "Heatmap", icon: Thermometer, enabled: true },
   { type: "unsupported", label: "Scatter Plot", icon: ChartScatter, enabled: false },
-  { type: "unsupported", label: "Distribution", icon: TrendUp, enabled: false },
-  { type: "unsupported", label: "Top List", icon: ListBullets, enabled: false },
+  { type: "distribution", label: "Distribution", icon: TrendUp, enabled: true },
+  { type: "top_list", label: "Top List", icon: ListBullets, enabled: true },
   { type: "unsupported", label: "Bar Chart", icon: ChartBar, enabled: false },
   { type: "unsupported", label: "List", icon: ListBullets, enabled: false },
-  { type: "unsupported", label: "Change", icon: ArrowsCounterClockwise, enabled: false },
+  { type: "change", label: "Change", icon: ArrowsCounterClockwise, enabled: true },
   { type: "unsupported", label: "Geomap", icon: Globe, enabled: false },
   { type: "unsupported", label: "Tree Map", icon: SquaresFour, enabled: false },
   { type: "pie-chart", label: "Pie Chart", icon: ChartPie, enabled: true },
@@ -87,14 +106,48 @@ function defaultWidget(type: WidgetType): Widget {
     title: defaultTitle(type),
     queries: [defaultQuery()],
     display: type === "timeseries" ? "lines" : undefined,
+    config: defaultConfigFor(type),
     createdAt: Date.now(),
   };
 }
 
+function defaultConfigFor(type: WidgetType): WidgetConfig | undefined {
+  switch (type) {
+    case "query_value":
+      return { query_value: defaultQueryValueConfig() };
+    case "top_list":
+      return { top_list: defaultTopListConfig() };
+    case "heatmap":
+      return { heatmap: defaultHeatmapConfig() };
+    case "change":
+      return { change: defaultChangeConfig() };
+    case "distribution":
+      return { distribution: defaultDistributionConfig() };
+    default:
+      return undefined;
+  }
+}
+
 function defaultTitle(type: WidgetType): string {
-  if (type === "timeseries") return "Timeseries";
-  if (type === "pie-chart") return "Pie Chart";
-  return "Table";
+  switch (type) {
+    case "timeseries":
+      return "Timeseries";
+    case "pie-chart":
+      return "Pie Chart";
+    case "query_value":
+      return "Query Value";
+    case "top_list":
+      return "Top List";
+    case "heatmap":
+      return "Heatmap";
+    case "change":
+      return "Change";
+    case "distribution":
+      return "Distribution";
+    case "table":
+    default:
+      return "Table";
+  }
 }
 
 export function WidgetEditorModal({
@@ -103,6 +156,7 @@ export function WidgetEditorModal({
   initialType,
   editingWidget,
   onClose,
+  onSave,
 }: Props) {
   const addWidget = useDashboardsStore((s) => s.addWidget);
   const updateWidget = useDashboardsStore((s) => s.updateWidget);
@@ -135,6 +189,14 @@ export function WidgetEditorModal({
       ...d,
       type,
       display: type === "timeseries" ? d.display ?? "lines" : undefined,
+      config: { ...(d.config ?? {}), ...(defaultConfigFor(type) ?? {}) },
+    }));
+  };
+
+  const updateConfig = (patch: Partial<WidgetConfig>) => {
+    setDraft((d) => ({
+      ...d,
+      config: { ...(d.config ?? {}), ...patch },
     }));
   };
 
@@ -165,10 +227,14 @@ export function WidgetEditorModal({
   };
 
   const handleSave = () => {
-    if (editingWidget) {
-      updateWidget(dashboardId, draft.id, draft);
-    } else {
-      addWidget(dashboardId, draft);
+    if (onSave) {
+      onSave(draft);
+    } else if (dashboardId) {
+      if (editingWidget) {
+        updateWidget(dashboardId, draft.id, draft);
+      } else {
+        addWidget(dashboardId, draft);
+      }
     }
     onClose();
   };
@@ -314,6 +380,41 @@ export function WidgetEditorModal({
             <DisplayOptions
               display={draft.display ?? "lines"}
               onChange={(display) => setDraft((d) => ({ ...d, display }))}
+            />
+          )}
+
+          {draft.type === "query_value" && (
+            <QueryValueOptions
+              cfg={draft.config?.query_value ?? defaultQueryValueConfig()}
+              onChange={(next) => updateConfig({ query_value: next })}
+            />
+          )}
+
+          {draft.type === "top_list" && (
+            <TopListOptions
+              cfg={draft.config?.top_list ?? defaultTopListConfig()}
+              onChange={(next) => updateConfig({ top_list: next })}
+            />
+          )}
+
+          {draft.type === "heatmap" && (
+            <HeatmapOptions
+              cfg={draft.config?.heatmap ?? defaultHeatmapConfig()}
+              onChange={(next) => updateConfig({ heatmap: next })}
+            />
+          )}
+
+          {draft.type === "change" && (
+            <ChangeOptions
+              cfg={draft.config?.change ?? defaultChangeConfig()}
+              onChange={(next) => updateConfig({ change: next })}
+            />
+          )}
+
+          {draft.type === "distribution" && (
+            <DistributionOptions
+              cfg={draft.config?.distribution ?? defaultDistributionConfig()}
+              onChange={(next) => updateConfig({ distribution: next })}
             />
           )}
 
@@ -517,4 +618,410 @@ function formatTzOffset(offsetMinutes: number): string {
   const hh = Math.floor(abs / 60).toString().padStart(2, "0");
   const mm = (abs % 60).toString().padStart(2, "0");
   return `${sign}${hh}:${mm}`;
+}
+
+// ---------- per-widget option panels ----------
+
+const AGG_OPTIONS = [
+  { value: "avg", label: "Avg" },
+  { value: "sum", label: "Sum" },
+  { value: "min", label: "Min" },
+  { value: "max", label: "Max" },
+  { value: "last", label: "Last" },
+];
+
+function NumberInput({
+  value,
+  onChange,
+  min,
+  max,
+  step,
+  className,
+  placeholder,
+}: {
+  value: number | null | "";
+  onChange: (n: number | null) => void;
+  min?: number;
+  max?: number;
+  step?: number;
+  className?: string;
+  placeholder?: string;
+}) {
+  return (
+    <input
+      type="number"
+      value={value ?? ""}
+      min={min}
+      max={max}
+      step={step}
+      placeholder={placeholder}
+      onChange={(e) => {
+        const v = e.target.value;
+        onChange(v === "" ? null : Number(v));
+      }}
+      className={`h-7 w-20 rounded-md border border-[#bdc1c6] bg-white px-2 text-[12px] text-[#202124] outline-none focus:border-[#1a73e8] ${
+        className ?? ""
+      }`}
+    />
+  );
+}
+
+function QueryValueOptions({
+  cfg,
+  onChange,
+}: {
+  cfg: QueryValueConfig;
+  onChange: (next: QueryValueConfig) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-4 border-t border-[#dadce0] py-3 text-[13px]">
+      <Field label="Aggregate:">
+        <Select
+          value={cfg.aggregateOverTime}
+          options={AGG_OPTIONS}
+          onChange={(v) =>
+            onChange({ ...cfg, aggregateOverTime: v as QueryValueConfig["aggregateOverTime"] })
+          }
+        />
+      </Field>
+      <Field label="Precision:">
+        <NumberInput
+          value={cfg.precision}
+          min={0}
+          max={6}
+          step={1}
+          onChange={(n) => onChange({ ...cfg, precision: n ?? 0 })}
+        />
+      </Field>
+      <Field label="Custom unit:">
+        <input
+          type="text"
+          value={cfg.customUnit ?? ""}
+          placeholder="e.g. ms, %"
+          onChange={(e) =>
+            onChange({ ...cfg, customUnit: e.target.value || null })
+          }
+          className="h-7 w-28 rounded-md border border-[#bdc1c6] bg-white px-2 text-[12px] text-[#202124] outline-none focus:border-[#1a73e8]"
+        />
+      </Field>
+      <Field label="Autoscale:">
+        <Select
+          value={cfg.autoscale ? "on" : "off"}
+          options={[
+            { value: "on", label: "On" },
+            { value: "off", label: "Off" },
+          ]}
+          onChange={(v) => onChange({ ...cfg, autoscale: v === "on" })}
+        />
+      </Field>
+      <Field label="Align:">
+        <Select
+          value={cfg.textAlign}
+          options={[
+            { value: "left", label: "Left" },
+            { value: "center", label: "Center" },
+            { value: "right", label: "Right" },
+          ]}
+          onChange={(v) =>
+            onChange({ ...cfg, textAlign: v as QueryValueConfig["textAlign"] })
+          }
+        />
+      </Field>
+    </div>
+  );
+}
+
+function TopListOptions({
+  cfg,
+  onChange,
+}: {
+  cfg: TopListConfig;
+  onChange: (next: TopListConfig) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-4 border-t border-[#dadce0] py-3 text-[13px]">
+      <Field label="Aggregate:">
+        <Select
+          value={cfg.aggregateOverTime}
+          options={AGG_OPTIONS}
+          onChange={(v) =>
+            onChange({
+              ...cfg,
+              aggregateOverTime: v as TopListConfig["aggregateOverTime"],
+            })
+          }
+        />
+      </Field>
+      <Field label="Display:">
+        <Select
+          value={cfg.display}
+          options={[
+            { value: "stacked", label: "Stacked" },
+            { value: "flat", label: "Flat" },
+          ]}
+          onChange={(v) =>
+            onChange({ ...cfg, display: v as TopListConfig["display"] })
+          }
+        />
+      </Field>
+      <Field label="Values:">
+        <Select
+          value={cfg.scaling}
+          options={[
+            { value: "absolute", label: "Absolute" },
+            { value: "relative", label: "Relative %" },
+          ]}
+          onChange={(v) =>
+            onChange({ ...cfg, scaling: v as TopListConfig["scaling"] })
+          }
+        />
+      </Field>
+      <Field label="Sort:">
+        <Select
+          value={cfg.sortDir}
+          options={[
+            { value: "desc", label: "Top" },
+            { value: "asc", label: "Bottom" },
+          ]}
+          onChange={(v) =>
+            onChange({ ...cfg, sortDir: v as TopListConfig["sortDir"] })
+          }
+        />
+      </Field>
+      <Field label="Limit:">
+        <NumberInput
+          value={cfg.limit}
+          min={1}
+          max={100}
+          step={1}
+          onChange={(n) => onChange({ ...cfg, limit: Math.max(1, n ?? 10) })}
+        />
+      </Field>
+    </div>
+  );
+}
+
+function HeatmapOptions({
+  cfg,
+  onChange,
+}: {
+  cfg: HeatmapConfig;
+  onChange: (next: HeatmapConfig) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-4 border-t border-[#dadce0] py-3 text-[13px]">
+      <Field label="Y scale:">
+        <Select
+          value={cfg.yAxisScale}
+          options={[
+            { value: "linear", label: "Linear" },
+            { value: "log", label: "Log" },
+            { value: "pow", label: "Pow" },
+            { value: "sqrt", label: "Sqrt" },
+          ]}
+          onChange={(v) =>
+            onChange({ ...cfg, yAxisScale: v as HeatmapConfig["yAxisScale"] })
+          }
+        />
+      </Field>
+      <Field label="Min:">
+        <NumberInput
+          value={cfg.yAxisMin}
+          placeholder="auto"
+          onChange={(n) => onChange({ ...cfg, yAxisMin: n })}
+        />
+      </Field>
+      <Field label="Max:">
+        <NumberInput
+          value={cfg.yAxisMax}
+          placeholder="auto"
+          onChange={(n) => onChange({ ...cfg, yAxisMax: n })}
+        />
+      </Field>
+      <Field label="Buckets:">
+        <NumberInput
+          value={cfg.numBuckets}
+          min={5}
+          max={120}
+          step={1}
+          onChange={(n) =>
+            onChange({ ...cfg, numBuckets: Math.max(5, Math.min(120, n ?? 30)) })
+          }
+        />
+      </Field>
+      <Field label="Include 0:">
+        <Select
+          value={cfg.yAxisIncludeZero ? "on" : "off"}
+          options={[
+            { value: "on", label: "On" },
+            { value: "off", label: "Off" },
+          ]}
+          onChange={(v) =>
+            onChange({ ...cfg, yAxisIncludeZero: v === "on" })
+          }
+        />
+      </Field>
+    </div>
+  );
+}
+
+function ChangeOptions({
+  cfg,
+  onChange,
+}: {
+  cfg: ChangeConfig;
+  onChange: (next: ChangeConfig) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-4 border-t border-[#dadce0] py-3 text-[13px]">
+      <Field label="Compare to:">
+        <Select
+          value={cfg.compareTo}
+          options={[
+            { value: "hour_before", label: "Hour before" },
+            { value: "day_before", label: "Day before" },
+            { value: "week_before", label: "Week before" },
+            { value: "month_before", label: "Month before" },
+          ]}
+          onChange={(v) =>
+            onChange({ ...cfg, compareTo: v as ChangeConfig["compareTo"] })
+          }
+        />
+      </Field>
+      <Field label="Type:">
+        <Select
+          value={cfg.changeType}
+          options={[
+            { value: "absolute", label: "Absolute" },
+            { value: "relative", label: "Relative %" },
+          ]}
+          onChange={(v) =>
+            onChange({ ...cfg, changeType: v as ChangeConfig["changeType"] })
+          }
+        />
+      </Field>
+      <Field label="Order by:">
+        <Select
+          value={cfg.orderBy}
+          options={[
+            { value: "change", label: "Change" },
+            { value: "name", label: "Name" },
+            { value: "present", label: "Present" },
+            { value: "past", label: "Past" },
+          ]}
+          onChange={(v) =>
+            onChange({ ...cfg, orderBy: v as ChangeConfig["orderBy"] })
+          }
+        />
+      </Field>
+      <Field label="Direction:">
+        <Select
+          value={cfg.orderDir}
+          options={[
+            { value: "desc", label: "Descending" },
+            { value: "asc", label: "Ascending" },
+          ]}
+          onChange={(v) =>
+            onChange({ ...cfg, orderDir: v as ChangeConfig["orderDir"] })
+          }
+        />
+      </Field>
+      <Field label="Show present:">
+        <Select
+          value={cfg.showPresent ? "on" : "off"}
+          options={[
+            { value: "on", label: "On" },
+            { value: "off", label: "Off" },
+          ]}
+          onChange={(v) => onChange({ ...cfg, showPresent: v === "on" })}
+        />
+      </Field>
+      <Field label="Increase is:">
+        <Select
+          value={cfg.increaseGood ? "good" : "bad"}
+          options={[
+            { value: "good", label: "Good" },
+            { value: "bad", label: "Bad" },
+          ]}
+          onChange={(v) => onChange({ ...cfg, increaseGood: v === "good" })}
+        />
+      </Field>
+    </div>
+  );
+}
+
+function DistributionOptions({
+  cfg,
+  onChange,
+}: {
+  cfg: DistributionConfig;
+  onChange: (next: DistributionConfig) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-4 border-t border-[#dadce0] py-3 text-[13px]">
+      <Field label="Histogram of:">
+        <Select
+          value={cfg.histogramOf}
+          options={[
+            { value: "groups", label: "Groups" },
+            { value: "points", label: "Points" },
+          ]}
+          onChange={(v) =>
+            onChange({
+              ...cfg,
+              histogramOf: v as DistributionConfig["histogramOf"],
+            })
+          }
+        />
+      </Field>
+      <Field label="Aggregate:">
+        <Select
+          value={cfg.aggregateOverTime}
+          options={AGG_OPTIONS}
+          onChange={(v) =>
+            onChange({
+              ...cfg,
+              aggregateOverTime: v as DistributionConfig["aggregateOverTime"],
+            })
+          }
+        />
+      </Field>
+      <Field label="Buckets:">
+        <NumberInput
+          value={cfg.numBuckets}
+          min={5}
+          max={100}
+          step={1}
+          onChange={(n) =>
+            onChange({ ...cfg, numBuckets: Math.max(5, Math.min(100, n ?? 20)) })
+          }
+        />
+      </Field>
+      <Field label="Y scale:">
+        <Select
+          value={cfg.yAxisScale}
+          options={[
+            { value: "linear", label: "Linear" },
+            { value: "log", label: "Log" },
+          ]}
+          onChange={(v) =>
+            onChange({
+              ...cfg,
+              yAxisScale: v as DistributionConfig["yAxisScale"],
+            })
+          }
+        />
+      </Field>
+      <Field label="Legend:">
+        <Select
+          value={cfg.showLegend ? "on" : "off"}
+          options={[
+            { value: "on", label: "On" },
+            { value: "off", label: "Off" },
+          ]}
+          onChange={(v) => onChange({ ...cfg, showLegend: v === "on" })}
+        />
+      </Field>
+    </div>
+  );
 }

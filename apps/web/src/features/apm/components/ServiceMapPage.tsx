@@ -28,9 +28,18 @@ const SERVICE_FILL: Record<string, string> = {
   auth: "#34a853",
   payments: "#fbbc04",
   worker: "#f59e0b",
-  postgres: "#7c3aed",
+  postgres: "#1a73e8",
   redis: "#e8b3a8",
 };
+
+const HEALTH_BORDER: Record<string, string> = {
+  critical: "#d32f2f",
+  warning: "#fdd835",
+  ok: "#dadce0",
+};
+
+const PULSE_PURPLE = "#1a73e8";
+const PULSE_RED = "#d93025";
 
 // Topology tier — entry points on the left, leaves on the right.
 const TIER_BY_SERVICE: Record<string, number> = {
@@ -108,6 +117,19 @@ function strokeForEdge(edge: ApmServiceMapEdge): string {
   }
   if (edge.calls === 0) return "#dadce0";
   return "#a8c5f7";
+}
+
+function pulseColorForEdge(edge: ApmServiceMapEdge): string {
+  const errRate = edge.errorRate ?? (edge.calls > 0 ? edge.errors / edge.calls : 0);
+  return errRate > 0.05 ? PULSE_RED : PULSE_PURPLE;
+}
+
+function pulseDurationForEdge(edge: ApmServiceMapEdge): number {
+  const rate = edge.callRate ?? 0;
+  if (rate <= 0) return 0;
+  // High traffic = fast pulses (down to 0.5s); low traffic = slow (up to 4s).
+  const seconds = Math.max(0.5, Math.min(4, 4 - Math.log10(1 + rate * 10)));
+  return seconds;
 }
 
 function widthForEdge(edge: ApmServiceMapEdge, max: number): number {
@@ -236,18 +258,42 @@ export function ServiceMapPage() {
                   : "arrowhead";
               const muted =
                 hovered && hovered !== edge.caller && hovered !== edge.callee;
+              const pathId = `edge-${edge.caller}-${edge.callee}`;
+              const pulseDur = pulseDurationForEdge(edge);
+              const pulseColor = pulseColorForEdge(edge);
               return (
                 <g
                   key={`${edge.caller}-${edge.callee}`}
-                  opacity={muted ? 0.25 : 1}
+                  opacity={muted ? 0.2 : 1}
                 >
                   <path
+                    id={pathId}
                     d={pathFor(a, b)}
                     stroke={stroke}
                     strokeWidth={widthForEdge(edge, maxCalls)}
                     fill="none"
                     markerEnd={`url(#${marker})`}
                   />
+                  {pulseDur > 0 && !muted && (
+                    <>
+                      <circle r="2.4" fill={pulseColor} opacity="0.95">
+                        <animateMotion
+                          dur={`${pulseDur}s`}
+                          repeatCount="indefinite"
+                        >
+                          <mpath href={`#${pathId}`} />
+                        </animateMotion>
+                      </circle>
+                      <circle r="4.8" fill={pulseColor} opacity="0.25">
+                        <animateMotion
+                          dur={`${pulseDur}s`}
+                          repeatCount="indefinite"
+                        >
+                          <mpath href={`#${pathId}`} />
+                        </animateMotion>
+                      </circle>
+                    </>
+                  )}
                   {edge.calls > 0 && (
                     <text
                       x={(a.x + NODE_W + b.x) / 2}
@@ -267,6 +313,9 @@ export function ServiceMapPage() {
             {Array.from(layout.nodes.values()).map(({ x, y, node }) => {
               const fill = SERVICE_FILL[node.service] ?? "#5f6368";
               const muted = hovered && hovered !== node.service;
+              const border =
+                HEALTH_BORDER[node.healthState ?? "ok"] ?? fill;
+              const bg = node.inferred ? "#e8f0fe" : "white";
               return (
                 <g
                   key={node.service}
@@ -281,9 +330,9 @@ export function ServiceMapPage() {
                     width={NODE_W}
                     height={NODE_H}
                     rx={8}
-                    fill="white"
-                    stroke={fill}
-                    strokeWidth={2}
+                    fill={bg}
+                    stroke={border}
+                    strokeWidth={node.healthState === "ok" ? 1.5 : 2.5}
                   />
                   <circle cx={16} cy={20} r={5} fill={fill} />
                   <text
@@ -331,6 +380,9 @@ export function ServiceMapPage() {
         <LegendChip color="#a8c5f7" label="Healthy edge" />
         <LegendChip color="#d93025" label="Errors > 5%" />
         <LegendChip color="#dadce0" label="No traffic in window" />
+        <LegendChip color="#1a73e8" label="Traffic pulse" />
+        <LegendChip color="#fdd835" label="Warning" />
+        <LegendChip color="#d32f2f" label="Critical" />
         <span className="ml-auto">
           {data?.nodes.length ?? 0} services · {data?.edges.length ?? 0} edges
         </span>

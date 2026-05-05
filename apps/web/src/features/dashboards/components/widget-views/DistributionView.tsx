@@ -138,7 +138,7 @@ function Histogram({
             />
             <Bar
               dataKey="count"
-              fill="#7c3aed"
+              fill="#1a73e8"
               isAnimationActive={false}
             />
           </BarChart>

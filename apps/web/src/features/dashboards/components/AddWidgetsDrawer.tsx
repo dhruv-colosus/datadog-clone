@@ -255,13 +255,13 @@ function WidgetSection({
               title={usable ? w.label : `${w.label} (coming soon)`}
               className={`flex flex-col items-center gap-1 rounded-md border border-[#dadce0] p-2 text-center transition-colors ${
                 usable
-                  ? "hover:border-[#7c3aed] hover:bg-[#faf5ff]"
+                  ? "hover:border-[#1a73e8] hover:bg-[#faf5ff]"
                   : "opacity-60"
               }`}
             >
               <span
                 className={`flex h-8 w-8 items-center justify-center rounded-md border border-[#dadce0] ${
-                  usable ? "text-[#7c3aed]" : "text-[#9aa0a6]"
+                  usable ? "text-[#1a73e8]" : "text-[#9aa0a6]"
                 }`}
               >
                 <Icon size={16} weight="duotone" />

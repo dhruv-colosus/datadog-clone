@@ -25,6 +25,9 @@ export const VISUALIZATIONS: {
   { value: "line", label: "Lines" },
   { value: "area", label: "Areas" },
   { value: "bar", label: "Bars" },
+  { value: "heatmap", label: "Heatmap" },
+  { value: "toplist", label: "Top list" },
+  { value: "query_value", label: "Query value" },
 ];
 
 export const LINE_STYLES: { value: LineStyle; label: string }[] = [
@@ -123,7 +126,7 @@ export const PALETTE_COLORS: Record<ColorPalette, string[]> = {
   classic: ["#3b82f6", "#7dd3fc", "#a5b4fc", "#c4b5fd", "#fb7185", "#f59e0b"],
   cool: ["#0d9488", "#14b8a6", "#22d3ee", "#60a5fa", "#3b82f6", "#6366f1"],
   warm: ["#dc2626", "#ea580c", "#f59e0b", "#facc15", "#f97316", "#fb923c"],
-  purple: ["#4c1d95", "#6d28d9", "#7c3aed", "#8b5cf6", "#a78bfa", "#c4b5fd"],
+  purple: ["#4c1d95", "#6d28d9", "#1a73e8", "#8b5cf6", "#a78bfa", "#c4b5fd"],
   orange: ["#7c2d12", "#9a3412", "#c2410c", "#ea580c", "#f97316", "#fdba74"],
   gray: ["#1f2937", "#374151", "#4b5563", "#6b7280", "#9ca3af", "#d1d5db"],
   red: ["#7f1d1d", "#991b1b", "#b91c1c", "#dc2626", "#ef4444", "#fca5a5"],

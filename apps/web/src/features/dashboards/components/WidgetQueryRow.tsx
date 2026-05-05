@@ -34,7 +34,7 @@ export function WidgetQueryRow({ query, canRemove, onChange, onRemove }: Props) 
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex flex-1 items-stretch overflow-hidden rounded-md border border-[#bdc1c6] bg-white">
-          <span className="flex h-7 w-7 items-center justify-center bg-[#7c3aed] text-[12px] font-semibold uppercase text-white">
+          <span className="flex h-7 w-7 items-center justify-center bg-[#1a73e8] text-[12px] font-semibold uppercase text-white">
             {query.alias}
           </span>
           <Divider />

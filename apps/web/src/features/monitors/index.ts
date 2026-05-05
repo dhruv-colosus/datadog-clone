@@ -1,5 +1,10 @@
 export { MonitorsList } from "./components/MonitorsList";
 export { MonitorDetail } from "./components/MonitorDetail";
 export { MonitorTypePicker } from "./components/MonitorTypePicker";
+export { MonitorConfigure } from "./components/MonitorConfigure";
+export { AnomalyMonitorConfigure } from "./components/AnomalyMonitorConfigure";
+export { ForecastMonitorConfigure } from "./components/ForecastMonitorConfigure";
 export { useMonitorsStore } from "./store";
+export * from "./api";
+export * from "./hooks";
 export * from "./types";

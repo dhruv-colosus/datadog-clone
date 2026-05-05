@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowSquareOut, CaretDown, SpeakerSimpleX, X } from "@phosphor-icons/react";
-import { getHost } from "../mock-data";
+import { useHost } from "../hooks";
 import { useInfraStore } from "../store";
 import type { HostInfoTabId } from "../types";
 import { ContainersTab } from "./ContainersTab";
@@ -28,8 +28,8 @@ export function HostDetailPanel() {
   const activeTab = useInfraStore((s) => s.activeTab);
   const setActiveTab = useInfraStore((s) => s.setActiveTab);
 
+  const { host } = useHost(selectedHostId);
   if (!selectedHostId) return null;
-  const host = getHost(selectedHostId);
   if (!host) return null;
 
   return (

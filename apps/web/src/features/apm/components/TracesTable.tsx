@@ -46,7 +46,7 @@ const SERVICE_DOT: Record<string, string> = {
   payments: "bg-[#fbbc04]",
   worker: "bg-[#f59e0b]",
   caddy: "bg-[#10b981]",
-  postgres: "bg-[#7c3aed]",
+  postgres: "bg-[#1a73e8]",
   redis: "bg-[#e8b3a8]",
 };
 
@@ -57,7 +57,7 @@ const SERVICE_ICON_BG: Record<string, string> = {
   payments: "bg-[#fef7e0] text-[#a37200]",
   worker: "bg-[#fff4e5] text-[#f59e0b]",
   caddy: "bg-[#dff5ec] text-[#10b981]",
-  postgres: "bg-[#f3e8fd] text-[#7c3aed]",
+  postgres: "bg-[#f3e8fd] text-[#1a73e8]",
   redis: "bg-[#fef7e0] text-[#e8b3a8]",
 };
 

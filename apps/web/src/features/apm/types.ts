@@ -41,6 +41,8 @@ export type ApmDependency = {
   weight?: number;
 };
 
+export type ApmServiceHealth = "critical" | "warning" | "ok";
+
 export type ApmServiceMapNode = {
   service: string;
   type: ApmServiceType;
@@ -52,6 +54,8 @@ export type ApmServiceMapNode = {
   errorRate: number;
   rps: number;
   p95LatencyMs: number;
+  healthState?: ApmServiceHealth;
+  inferred?: boolean;
 };
 
 export type ApmServiceMapEdge = {
@@ -60,6 +64,8 @@ export type ApmServiceMapEdge = {
   calls: number;
   errors: number;
   kind?: "http" | "db" | "cache" | "queue";
+  callRate?: number;
+  errorRate?: number;
 };
 
 export type ApmServiceMap = {

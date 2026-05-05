@@ -26,6 +26,7 @@ import {
   rangeFromPreset,
   type TimeRange,
 } from "@/components/ui/TimeRangePicker";
+import { fetchDashboard } from "../api";
 import { useDashboardsStore } from "../store";
 import type { Widget, WidgetType } from "../types";
 import { AddWidgetsDrawer } from "./AddWidgetsDrawer";
@@ -47,6 +48,7 @@ export function DashboardEditor({ dashboardId }: Props) {
   const dashboard = useDashboardsStore((s) =>
     s.dashboards.find((d) => d.id === dashboardId),
   );
+  const upsertDashboard = useDashboardsStore((s) => s.upsertDashboard);
   const removeWidget = useDashboardsStore((s) => s.removeWidget);
 
   const [timeRange, setTimeRange] = useState<TimeRange>(() =>
@@ -59,6 +61,9 @@ export function DashboardEditor({ dashboardId }: Props) {
     url: string;
     copied: boolean;
   } | null>(null);
+  const [fetchState, setFetchState] = useState<"idle" | "loading" | "missing">(
+    "idle",
+  );
 
   // Auto-dismiss the share toast after 8 seconds.
   useEffect(() => {
@@ -67,19 +72,46 @@ export function DashboardEditor({ dashboardId }: Props) {
     return () => window.clearTimeout(t);
   }, [shareToast]);
 
+  // If a user lands directly on /dashboard/{id} we need to fetch from the
+  // backend — the store is populated lazily by the list page.
+  useEffect(() => {
+    if (dashboard) return;
+    let cancelled = false;
+    setFetchState("loading");
+    fetchDashboard(dashboardId)
+      .then((d) => {
+        if (cancelled) return;
+        upsertDashboard(d);
+        setFetchState("idle");
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setFetchState("missing");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [dashboard, dashboardId, upsertDashboard]);
+
   if (!dashboard) {
     return (
       <div className="flex h-full flex-col bg-white text-[#202124]">
         <div className="flex flex-1 items-center justify-center text-[14px] text-[#5f6368]">
           <div className="text-center">
-            <p>Dashboard not found.</p>
-            <button
-              type="button"
-              onClick={() => router.push("/dashboard/lists")}
-              className="mt-2 text-[#1a73e8] hover:underline"
-            >
-              Back to dashboards
-            </button>
+            {fetchState === "loading" ? (
+              <p>Loading dashboard…</p>
+            ) : (
+              <>
+                <p>Dashboard not found.</p>
+                <button
+                  type="button"
+                  onClick={() => router.push("/dashboard/lists")}
+                  className="mt-2 text-[#1a73e8] hover:underline"
+                >
+                  Back to dashboards
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -165,16 +197,16 @@ export function DashboardEditor({ dashboardId }: Props) {
           <button
             type="button"
             onClick={() => setDrawerOpen(true)}
-            className="flex h-[260px] w-full max-w-[760px] flex-col items-center justify-center rounded-md border border-dashed border-[#dadce0] bg-white text-[#7c3aed] transition-colors hover:bg-[#faf5ff]"
+            className="flex h-[260px] w-full max-w-[760px] flex-col items-center justify-center rounded-md border border-dashed border-[#dadce0] bg-white text-[#1a73e8] transition-colors hover:bg-[#faf5ff]"
           >
             <Plus size={28} weight="bold" />
             <p className="mt-3 flex items-center gap-1 text-[14px]">
               Add{" "}
-              <span className="inline-flex items-center gap-1 text-[#7c3aed]">
+              <span className="inline-flex items-center gap-1 text-[#1a73e8]">
                 <ChartLineUp size={14} weight="bold" /> Widgets
               </span>{" "}
               or{" "}
-              <span className="inline-flex items-center gap-1 text-[#7c3aed]">
+              <span className="inline-flex items-center gap-1 text-[#1a73e8]">
                 <Square size={14} weight="bold" /> Powerpacks
               </span>
             </p>

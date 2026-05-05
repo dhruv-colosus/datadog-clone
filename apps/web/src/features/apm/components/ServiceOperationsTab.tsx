@@ -100,7 +100,7 @@ export function ServiceOperationsTab({ service }: { service: ApmService }) {
                   key={op.name}
                   className="border-b border-[#f1f3f4] last:border-b-0 hover:bg-[#f8f9fb]"
                 >
-                  <td className="px-3 py-2.5 font-mono text-[12.5px] text-[#7c3aed]">
+                  <td className="px-3 py-2.5 font-mono text-[12.5px] text-[#1a73e8]">
                     {op.name}
                   </td>
                   <td className="px-3 py-2.5">

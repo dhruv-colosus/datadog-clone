@@ -56,7 +56,13 @@ export type Formula = {
   displayName: string | null;
 };
 
-export type VisualizationType = "line" | "bar" | "area";
+export type VisualizationType =
+  | "line"
+  | "bar"
+  | "area"
+  | "heatmap"
+  | "toplist"
+  | "query_value";
 
 export type LineStyle = "solid" | "dashed" | "dotted";
 export type LineStroke = "thin" | "normal" | "thick";

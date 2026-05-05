@@ -11,7 +11,7 @@ const SERVICE_FILL: Record<string, string> = {
   auth: "#34a853",
   payments: "#fbbc04",
   worker: "#f59e0b",
-  postgres: "#7c3aed",
+  postgres: "#1a73e8",
   redis: "#e8b3a8",
 };
 

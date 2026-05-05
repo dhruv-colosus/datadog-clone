@@ -8,7 +8,7 @@ import {
   Gear,
   Keyboard,
 } from "@phosphor-icons/react";
-import { LIST_HOSTS } from "../mock-data";
+import { useHosts } from "../hooks";
 import { useInfraStore } from "../store";
 import type { Host, HostApp } from "../types";
 import { AgentIcon, OsIcon } from "./HostStatusIcons";
@@ -19,7 +19,7 @@ const APP_COLORS: Record<HostApp, string> = {
   docker: "bg-[#dde7fb] text-[#1a73e8]",
   ntp: "bg-[#dde7fb] text-[#1a73e8]",
   system: "bg-[#dde7fb] text-[#1a73e8]",
-  agent: "bg-[#ede1fa] text-[#7c3aed]",
+  agent: "bg-[#ede1fa] text-[#1a73e8]",
   kubernetes: "bg-[#dde7fb] text-[#1a73e8]",
   redis: "bg-[#fde2e2] text-[#a50e0e]",
   postgres: "bg-[#dde7fb] text-[#1a73e8]",
@@ -30,10 +30,11 @@ export function HostTable() {
   const selectHost = useInfraStore((s) => s.selectHost);
   const selectedId = useInfraStore((s) => s.selectedHostId);
   const searchQuery = useInfraStore((s) => s.searchQuery);
+  const { hosts, isLoading, isError } = useHosts();
 
   const filtered = useMemo(
-    () => filterHosts(LIST_HOSTS, searchQuery),
-    [searchQuery],
+    () => filterHosts(hosts, searchQuery),
+    [hosts, searchQuery],
   );
 
   return (
@@ -111,7 +112,11 @@ export function HostTable() {
                   colSpan={7}
                   className="px-4 py-12 text-center text-[13px] text-[#5f6368]"
                 >
-                  No hosts match this filter.
+                  {isLoading
+                    ? "Loading hosts…"
+                    : isError
+                      ? "Failed to load hosts."
+                      : "No hosts match this filter."}
                 </td>
               </tr>
             )}

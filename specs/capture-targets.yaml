@@ -35,7 +35,7 @@ screens:
 
   - id: monitors-list
     name: Monitors list
-    url: /monitors/manage
+    url: /monitor/manage
     intent: |
       Document the monitors list page: filter sidebar (status, tag, type), status
       pills, table columns, bulk-actions bar (open it but do not act), notification
@@ -45,7 +45,7 @@ screens:
 
   - id: monitor-create-entry
     name: Monitor type picker
-    url: /monitors/create
+    url: /monitor/create
     intent: |
       Document the monitor-type chooser screen: each monitor-type tile (Metric, APM,
       Logs, Process, etc.). DO NOT proceed past the picker — do not click into any

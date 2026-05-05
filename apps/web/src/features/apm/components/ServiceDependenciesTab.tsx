@@ -21,7 +21,7 @@ const SERVICE_DOT: Record<string, string> = {
   auth: "bg-[#34a853]",
   payments: "bg-[#fbbc04]",
   worker: "bg-[#f59e0b]",
-  postgres: "bg-[#7c3aed]",
+  postgres: "bg-[#1a73e8]",
   redis: "bg-[#e8b3a8]",
 };
 

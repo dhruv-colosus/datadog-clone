@@ -127,7 +127,9 @@ TAG_CATALOG: dict[str, tuple[str, ...]] = {
 
 
 # ---------------------------------------------------------------------------
-# Hosts (50 deterministic entries)
+# Hosts (5 deterministic entries — one per major role: api, web, worker, db,
+# cache. Other services like auth/payments/caddy share these hosts at the
+# trace/log level; they don't get dedicated rows in `topology_hosts`.)
 # ---------------------------------------------------------------------------
 
 
@@ -160,18 +162,26 @@ class Host:
 
 
 def _build_hosts() -> tuple[Host, ...]:
-    """Deterministic 50-host fixture. Stable across restarts."""
-    out: list[Host] = [
-        # Pinned host that the frontend's mock HostList opens by default.
-        # Keeps the host detail panel functional against real DB data.
+    """Deterministic host fixture. Stable across restarts.
+
+    One prod host per service so the canonical 8-service set is fully
+    representable on env=prod (default for APM/infra views), plus the pinned
+    `saas-clone-staging` host the frontend's HostList opens by default.
+    Without prod hosts for api/auth/payments/caddy, spans for those services
+    inherit env=staging from the pinned host and disappear from env=prod
+    dashboards.
+    """
+    return (
+        # Pinned host the frontend's HostList opens by default. Keeps the
+        # detail panel functional against real DB data.
         Host(
             id="saas-clone-staging",
             hostname="saas-clone-staging",
             role="api",
             service="api",
             env="staging",
-            region="nyc3",
-            availability_zone="nyc3-1a",
+            region="us-east-1",
+            availability_zone="us-east-1a",
             os="linux",
             cpu_cores=8,
             memory_gb=16.0,
@@ -189,135 +199,207 @@ def _build_hosts() -> tuple[Host, ...]:
             version="v1.5.0",
             team="platform",
         ),
-    ]
-    role_to_service: dict[str, str | None] = {
-        "edge": "caddy",
-        "web": "web",
-        "api": "api",
-        "auth": "auth",
-        "payments": "payments",
-        "worker": "worker",
-        "db": "postgres",
-        "cache": "redis",
-    }
-    # Rough role × env distribution targeting 50 hosts
-    distribution: list[tuple[str, str, int]] = [
-        # role, env, count
-        ("edge", "prod", 2),
-        ("edge", "staging", 1),
-        ("web", "prod", 6),
-        ("web", "staging", 3),
-        ("web", "dev", 1),
-        ("api", "prod", 8),
-        ("api", "staging", 3),
-        ("api", "dev", 1),
-        ("auth", "prod", 3),
-        ("auth", "staging", 2),
-        ("payments", "prod", 4),
-        ("payments", "staging", 2),
-        ("worker", "prod", 4),
-        ("worker", "staging", 2),
-        ("worker", "dev", 1),
-        ("db", "prod", 3),
-        ("db", "staging", 1),
-        ("cache", "prod", 2),
-        ("cache", "staging", 1),
-    ]
-    counter = 0
-    for role, env, count in distribution:
-        for i in range(count):
-            counter += 1
-            region_idx = counter % len(REGIONS)
-            region = REGIONS[region_idx]
-            azs = AZS_BY_REGION[region]
-            az = azs[counter % len(azs)]
-            nn = f"{i + 1:02d}"
-            hostname = f"{role}-{env}-{region}-{az[-2:]}-{nn}"
-            host_id = hostname  # stable id
-            os: HostOS = "linux"
-            cpu_cores = {"db": 16, "cache": 8, "edge": 4}.get(role, 8)
-            mem_gb = {"db": 64.0, "cache": 32.0, "edge": 8.0}.get(role, 16.0)
-            fs_gb = {"db": 1000.0, "cache": 50.0}.get(role, 200.0)
-            apps_for_role: dict[str, tuple[str, ...]] = {
-                "edge": ("system", "agent", "nginx"),
-                "web": ("system", "agent", "container", "docker"),
-                "api": ("system", "agent", "container", "docker", "kubernetes"),
-                "auth": ("system", "agent", "container", "docker"),
-                "payments": ("system", "agent", "container", "docker"),
-                "worker": ("system", "agent", "container", "docker"),
-                "db": ("system", "agent", "postgres"),
-                "cache": ("system", "agent", "redis"),
-            }
-            kube_cluster = "main" if role in ("api", "web", "auth", "payments", "worker") else None
-            kube_ns = "default" if kube_cluster else None
-            ip_a = (counter % 250) + 1
-            ip_b = ((counter * 7) % 250) + 1
-            ip_address = f"10.{region_idx}.{ip_b}.{ip_a}"
-            ipv6 = f"2604:a880:400:d{region_idx}::{counter:04x}"
-            mac = ":".join(f"{(counter * (i + 13)) % 256:02x}" for i in range(6))
-            out.append(
-                Host(
-                    id=host_id,
-                    hostname=hostname,
-                    role=role,
-                    service=role_to_service[role],
-                    env=env,
-                    region=region,
-                    availability_zone=az,
-                    os=os,
-                    cpu_cores=cpu_cores,
-                    memory_gb=mem_gb,
-                    filesystem_gb=fs_gb,
-                    ip_address=ip_address,
-                    ipv6_address=ipv6,
-                    mac_address=mac,
-                    kernel_release="6.1.0-22-amd64",
-                    kernel_version="#1 SMP Debian 6.1.94-1",
-                    docker_version="24.0.7",
-                    agent_version="7.78.2",
-                    apps=apps_for_role[role],
-                    kube_cluster_name=kube_cluster,
-                    kube_namespace=kube_ns,
-                    version=VERSIONS[counter % len(VERSIONS)],
-                    team={
-                        "edge": "sre",
-                        "db": "sre",
-                        "cache": "sre",
-                        "payments": "billing",
-                    }.get(role, "platform"),
-                )
-            )
-    # Pad to exactly 50 if we're under (we should be at 50 already; this guards)
-    while len(out) < 50:
-        n = len(out) + 1
-        out.append(
-            Host(
-                id=f"misc-prod-us-east-1-1a-{n:02d}",
-                hostname=f"misc-prod-us-east-1-1a-{n:02d}",
-                role="api",
-                service="api",
-                env="prod",
-                region="us-east-1",
-                availability_zone="us-east-1a",
-                os="linux",
-                cpu_cores=8,
-                memory_gb=16.0,
-                filesystem_gb=200.0,
-                ip_address=f"10.0.99.{n}",
-                ipv6_address=f"2604:a880:400:d0::ff{n:02x}",
-                mac_address=":".join(f"{(n * (i + 17)) % 256:02x}" for i in range(6)),
-                kernel_release="6.1.0-22-amd64",
-                kernel_version="#1 SMP Debian 6.1.94-1",
-                docker_version="24.0.7",
-                agent_version="7.78.2",
-                apps=("system", "agent"),
-                kube_cluster_name="main",
-                kube_namespace="default",
-                version="v1.4.0",
-                team="platform",
-            )
-        )
-    return tuple(out[:51])
+        Host(
+            id="api-prod-us-east-1a-01",
+            hostname="api-prod-us-east-1a-01",
+            role="api",
+            service="api",
+            env="prod",
+            region="us-east-1",
+            availability_zone="us-east-1a",
+            os="linux",
+            cpu_cores=8,
+            memory_gb=16.0,
+            filesystem_gb=200.0,
+            ip_address="10.0.20.31",
+            ipv6_address="2604:a880:400:d0::0011",
+            mac_address="4a:5b:6c:7d:8e:9f",
+            kernel_release="6.1.0-22-amd64",
+            kernel_version="#1 SMP Debian 6.1.94-1",
+            docker_version="24.0.7",
+            agent_version="7.78.2",
+            apps=("system", "agent", "container", "docker", "kubernetes"),
+            kube_cluster_name="main",
+            kube_namespace="default",
+            version="v1.5.0",
+            team="platform",
+        ),
+        Host(
+            id="caddy-prod-us-east-1a-01",
+            hostname="caddy-prod-us-east-1a-01",
+            role="edge",
+            service="caddy",
+            env="prod",
+            region="us-east-1",
+            availability_zone="us-east-1a",
+            os="linux",
+            cpu_cores=4,
+            memory_gb=8.0,
+            filesystem_gb=200.0,
+            ip_address="10.0.5.10",
+            ipv6_address="2604:a880:400:d0::0005",
+            mac_address="5a:6b:7c:8d:9e:af",
+            kernel_release="6.1.0-22-amd64",
+            kernel_version="#1 SMP Debian 6.1.94-1",
+            docker_version="24.0.7",
+            agent_version="7.78.2",
+            apps=("system", "agent", "nginx"),
+            kube_cluster_name=None,
+            kube_namespace=None,
+            version="v1.5.0",
+            team="sre",
+        ),
+        Host(
+            id="auth-prod-us-east-1b-01",
+            hostname="auth-prod-us-east-1b-01",
+            role="auth",
+            service="auth",
+            env="prod",
+            region="us-east-1",
+            availability_zone="us-east-1b",
+            os="linux",
+            cpu_cores=8,
+            memory_gb=16.0,
+            filesystem_gb=200.0,
+            ip_address="10.0.50.12",
+            ipv6_address="2604:a880:400:d0::0006",
+            mac_address="6a:7b:8c:9d:ae:bf",
+            kernel_release="6.1.0-22-amd64",
+            kernel_version="#1 SMP Debian 6.1.94-1",
+            docker_version="24.0.7",
+            agent_version="7.78.2",
+            apps=("system", "agent", "container", "docker"),
+            kube_cluster_name="main",
+            kube_namespace="default",
+            version="v1.4.1",
+            team="platform",
+        ),
+        Host(
+            id="payments-prod-us-west-2a-01",
+            hostname="payments-prod-us-west-2a-01",
+            role="payments",
+            service="payments",
+            env="prod",
+            region="us-west-2",
+            availability_zone="us-west-2a",
+            os="linux",
+            cpu_cores=8,
+            memory_gb=16.0,
+            filesystem_gb=200.0,
+            ip_address="10.1.60.18",
+            ipv6_address="2604:a880:400:d1::0007",
+            mac_address="7a:8b:9c:ad:be:cf",
+            kernel_release="6.1.0-22-amd64",
+            kernel_version="#1 SMP Debian 6.1.94-1",
+            docker_version="24.0.7",
+            agent_version="7.78.2",
+            apps=("system", "agent", "container", "docker"),
+            kube_cluster_name="main",
+            kube_namespace="default",
+            version="v1.5.0",
+            team="billing",
+        ),
+        Host(
+            id="web-prod-us-east-1a-01",
+            hostname="web-prod-us-east-1a-01",
+            role="web",
+            service="web",
+            env="prod",
+            region="us-east-1",
+            availability_zone="us-east-1a",
+            os="linux",
+            cpu_cores=8,
+            memory_gb=16.0,
+            filesystem_gb=200.0,
+            ip_address="10.0.10.21",
+            ipv6_address="2604:a880:400:d0::0001",
+            mac_address="0a:1b:2c:3d:4e:5f",
+            kernel_release="6.1.0-22-amd64",
+            kernel_version="#1 SMP Debian 6.1.94-1",
+            docker_version="24.0.7",
+            agent_version="7.78.2",
+            apps=("system", "agent", "container", "docker"),
+            kube_cluster_name="main",
+            kube_namespace="default",
+            version="v1.5.0",
+            team="platform",
+        ),
+        Host(
+            id="worker-prod-us-west-2a-01",
+            hostname="worker-prod-us-west-2a-01",
+            role="worker",
+            service="worker",
+            env="prod",
+            region="us-west-2",
+            availability_zone="us-west-2a",
+            os="linux",
+            cpu_cores=8,
+            memory_gb=16.0,
+            filesystem_gb=200.0,
+            ip_address="10.1.20.42",
+            ipv6_address="2604:a880:400:d1::0002",
+            mac_address="1a:2b:3c:4d:5e:6f",
+            kernel_release="6.1.0-22-amd64",
+            kernel_version="#1 SMP Debian 6.1.94-1",
+            docker_version="24.0.7",
+            agent_version="7.78.2",
+            apps=("system", "agent", "container", "docker"),
+            kube_cluster_name="main",
+            kube_namespace="default",
+            version="v1.4.1",
+            team="platform",
+        ),
+        Host(
+            id="postgres-prod-us-east-1b-01",
+            hostname="postgres-prod-us-east-1b-01",
+            role="db",
+            service="postgres",
+            env="prod",
+            region="us-east-1",
+            availability_zone="us-east-1b",
+            os="linux",
+            cpu_cores=16,
+            memory_gb=64.0,
+            filesystem_gb=1000.0,
+            ip_address="10.0.30.10",
+            ipv6_address="2604:a880:400:d0::0003",
+            mac_address="2a:3b:4c:5d:6e:7f",
+            kernel_release="6.1.0-22-amd64",
+            kernel_version="#1 SMP Debian 6.1.94-1",
+            docker_version="24.0.7",
+            agent_version="7.78.2",
+            apps=("system", "agent", "postgres"),
+            kube_cluster_name=None,
+            kube_namespace=None,
+            version="v1.5.0",
+            team="sre",
+        ),
+        Host(
+            id="redis-prod-eu-west-1a-01",
+            hostname="redis-prod-eu-west-1a-01",
+            role="cache",
+            service="redis",
+            env="prod",
+            region="eu-west-1",
+            availability_zone="eu-west-1a",
+            os="linux",
+            cpu_cores=8,
+            memory_gb=32.0,
+            filesystem_gb=50.0,
+            ip_address="10.2.40.7",
+            ipv6_address="2604:a880:400:d2::0004",
+            mac_address="3a:4b:5c:6d:7e:8f",
+            kernel_release="6.1.0-22-amd64",
+            kernel_version="#1 SMP Debian 6.1.94-1",
+            docker_version="24.0.7",
+            agent_version="7.78.2",
+            apps=("system", "agent", "redis"),
+            kube_cluster_name=None,
+            kube_namespace=None,
+            version="v1.5.0",
+            team="sre",
+        ),
+    )
 
 
 HOSTS: tuple[Host, ...] = _build_hosts()

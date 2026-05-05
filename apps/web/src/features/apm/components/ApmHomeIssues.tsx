@@ -83,7 +83,7 @@ function IssueRow({
           <span className="rounded-md bg-[#fce8e6] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#d93025]">
             Error
           </span>
-          <span className="font-mono text-[12.5px] text-[#7c3aed]">
+          <span className="font-mono text-[12.5px] text-[#1a73e8]">
             {issue.resource}
           </span>
           {issue.httpStatus ? (

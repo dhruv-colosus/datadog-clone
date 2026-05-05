@@ -3,7 +3,7 @@ import type { ApmServiceType } from "../types";
 
 const COLOR: Record<ApmServiceType, string> = {
   web: "bg-[#e8f0fe] text-[#1a73e8]",
-  db: "bg-[#f3e8fd] text-[#7c3aed]",
+  db: "bg-[#f3e8fd] text-[#1a73e8]",
   cache: "bg-[#fce8f4] text-[#a142f4]",
   custom: "bg-[#fef7e0] text-[#a37200]",
 };

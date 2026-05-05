@@ -17,7 +17,12 @@ import {
 import { PALETTE_COLORS } from "../constants";
 import { useMetricSeries } from "../hooks";
 import { useExplorerStore } from "../store";
-import type { MetricQuery, Series, TimeRange } from "../types";
+import type {
+  MetricQuery,
+  Series,
+  TimeRange,
+  VisualizationType,
+} from "../types";
 
 type Props = {
   query: MetricQuery;
@@ -71,14 +76,22 @@ export function MetricChart({ query }: Props) {
 
   return (
     <ChartShell label={label}>
-      <TimeSeriesView
-        series={orderedSeries}
-        timeRange={timeRange}
-        visualization={visualization}
-        palette={palette}
-        lineStyle={lineStyle}
-        lineStroke={lineStroke}
-      />
+      {visualization === "heatmap" ? (
+        <HeatmapView series={orderedSeries} palette={palette} />
+      ) : visualization === "toplist" ? (
+        <TopListView series={orderedSeries} palette={palette} />
+      ) : visualization === "query_value" ? (
+        <QueryValueView series={orderedSeries} color={palette[0]} />
+      ) : (
+        <TimeSeriesView
+          series={orderedSeries}
+          timeRange={timeRange}
+          visualization={visualization}
+          palette={palette}
+          lineStyle={lineStyle}
+          lineStroke={lineStroke}
+        />
+      )}
     </ChartShell>
   );
 }
@@ -214,7 +227,7 @@ function TimeSeriesView({
 }: {
   series: Series[];
   timeRange: TimeRange;
-  visualization: "line" | "bar" | "area";
+  visualization: VisualizationType;
   palette: string[];
   lineStyle: "solid" | "dashed" | "dotted";
   lineStroke: "thin" | "normal" | "thick";
@@ -333,6 +346,138 @@ function TimeSeriesView({
         </ResponsiveContainer>
       </div>
       <ChartLegend series={series} colors={palette} />
+    </div>
+  );
+}
+
+function seriesAverage(s: Series): number {
+  if (s.points.length === 0) return 0;
+  let sum = 0;
+  for (const p of s.points) sum += p.value;
+  return sum / s.points.length;
+}
+
+function seriesLast(s: Series): number {
+  return s.points.length === 0 ? 0 : s.points[s.points.length - 1].value;
+}
+
+function HeatmapView({
+  series,
+  palette,
+}: {
+  series: Series[];
+  palette: string[];
+}) {
+  if (series.length === 0) return <EmptyMessage text="No data." />;
+
+  const baseColor = palette[0] ?? "#3b82f6";
+  let max = -Infinity;
+  let min = Infinity;
+  for (const s of series) {
+    for (const p of s.points) {
+      if (p.value > max) max = p.value;
+      if (p.value < min) min = p.value;
+    }
+  }
+  if (!Number.isFinite(max) || !Number.isFinite(min) || max === min) {
+    max = (min === Infinity ? 0 : min) + 1;
+    min = min === Infinity ? 0 : min;
+  }
+
+  return (
+    <div className="flex h-full flex-col gap-1 overflow-auto px-2 py-2">
+      {series.map((s, rowIdx) => (
+        <div
+          key={`${s.label}-${rowIdx}`}
+          className="flex items-center gap-2 text-[12px] text-[#202124]"
+        >
+          <span className="w-40 shrink-0 truncate" title={s.label}>
+            {s.label}
+          </span>
+          <div className="flex h-5 flex-1 gap-px">
+            {s.points.map((p, i) => {
+              const t = (p.value - min) / (max - min);
+              return (
+                <span
+                  key={i}
+                  className="block h-full flex-1"
+                  style={{
+                    backgroundColor: baseColor,
+                    opacity: 0.15 + 0.85 * t,
+                  }}
+                  title={`${p.value.toFixed(2)}`}
+                />
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TopListView({
+  series,
+  palette,
+}: {
+  series: Series[];
+  palette: string[];
+}) {
+  if (series.length === 0) return <EmptyMessage text="No data." />;
+  const ranked = series
+    .map((s, idx) => ({ s, value: seriesAverage(s), idx }))
+    .sort((a, b) => b.value - a.value);
+  const max = Math.max(...ranked.map((r) => r.value), 0) || 1;
+  return (
+    <ul className="flex h-full flex-col gap-1.5 overflow-auto px-3 py-3 text-[13px]">
+      {ranked.map(({ s, value, idx }) => {
+        const color = palette[idx % palette.length];
+        const pct = Math.max(2, (value / max) * 100);
+        return (
+          <li key={`${s.label}-${idx}`} className="flex flex-col gap-0.5">
+            <div className="flex items-center justify-between text-[#202124]">
+              <span className="truncate" title={s.label}>
+                {s.label}
+              </span>
+              <span className="ml-2 font-mono text-[12px] text-[#5f6368]">
+                {value.toFixed(2)}
+              </span>
+            </div>
+            <div className="h-2 w-full rounded-sm bg-[#f1f3f4]">
+              <div
+                className="h-full rounded-sm"
+                style={{ width: `${pct}%`, backgroundColor: color }}
+              />
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function QueryValueView({
+  series,
+  color,
+}: {
+  series: Series[];
+  color: string;
+}) {
+  if (series.length === 0) return <EmptyMessage text="No data." />;
+  const lastValues = series.map(seriesLast);
+  const value =
+    lastValues.reduce((a, b) => a + b, 0) / Math.max(1, lastValues.length);
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-1">
+      <span
+        className="font-semibold tabular-nums"
+        style={{ color, fontSize: "min(96px, 18vw)", lineHeight: 1 }}
+      >
+        {value.toFixed(2)}
+      </span>
+      <span className="text-[12px] text-[#5f6368]">
+        avg of {series.length} series · last value
+      </span>
     </div>
   );
 }

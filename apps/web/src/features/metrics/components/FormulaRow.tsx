@@ -22,7 +22,7 @@ export function FormulaRow({ formula }: Props) {
           updateFormula(formula.id, { expression: e.target.value })
         }
         placeholder="Formula, eg. 2*a"
-        className="h-7 flex-1 min-w-[240px] rounded-md border border-[#bdc1c6] bg-white px-2 text-[13px] outline-none focus:border-[#7c3aed]"
+        className="h-7 flex-1 min-w-[240px] rounded-md border border-[#bdc1c6] bg-white px-2 text-[13px] outline-none focus:border-[#1a73e8]"
       />
       <button
         type="button"
@@ -74,7 +74,7 @@ export function FormulaRow({ formula }: Props) {
               })
             }
             placeholder="formula display name"
-            className="w-full rounded-md border border-[#bdc1c6] px-2 py-1 text-[13px] outline-none focus:border-[#7c3aed]"
+            className="w-full rounded-md border border-[#bdc1c6] px-2 py-1 text-[13px] outline-none focus:border-[#1a73e8]"
           />
         </Popover>
         <button

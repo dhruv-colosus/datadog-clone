@@ -62,11 +62,18 @@ async def write_tick(
     pool: asyncpg.Pool,
     t_seconds: float,
     spike_multipliers: dict[tuple[str, str], float],
+    tick_duration_seconds: float | None = None,
 ) -> tuple[int, int, int, int]:
     """Generate + COPY-insert one tick.
 
+    `tick_duration_seconds` scales generators that need to know how much wall-
+    clock time the tick covers (currently traces). Defaults to the configured
+    `TICK_INTERVAL_SECONDS` so the live runner produces proportional traffic.
+
     Returns (n_metrics, n_logs, n_spans, n_rum_events).
     """
+    if tick_duration_seconds is None:
+        tick_duration_seconds = float(get_settings().tick_interval_seconds)
 
     metric_rows = [
         (
@@ -81,20 +88,39 @@ async def write_tick(
         )
         for p in iter_points_for_tick(t_seconds, spike_multipliers=spike_multipliers)
     ]
-    log_rows = [
-        (
-            _seconds_to_dt(line.ts_seconds),
-            line.service,
-            line.host,
-            line.env,
-            line.status,
-            line.message,
-            json.dumps(line.attributes),
-            line.trace_id,
-            line.span_id,
-        )
-        for line in iter_lines_for_tick(t_seconds)
-    ]
+    from app.log_config.runtime import apply_to_log
+    log_rows: list[tuple] = []
+    pending_findings: list[tuple[str, str, list[dict]]] = []
+    for line in iter_lines_for_tick(t_seconds):
+        raw_log = {
+            "ts": _seconds_to_dt(line.ts_seconds),
+            "service": line.service,
+            "host": line.host,
+            "env": line.env,
+            "status": line.status,
+            "message": line.message,
+            "attributes": dict(line.attributes),
+            "trace_id": line.trace_id,
+            "span_id": line.span_id,
+        }
+        transformed, findings = apply_to_log(raw_log)
+        log_rows.append((
+            transformed.get("ts", _seconds_to_dt(line.ts_seconds)),
+            transformed.get("service", line.service),
+            transformed.get("host", line.host),
+            transformed.get("env", line.env),
+            transformed.get("status", line.status),
+            transformed.get("message", line.message),
+            json.dumps(transformed.get("attributes", {})),
+            transformed.get("trace_id", line.trace_id),
+            transformed.get("span_id", line.span_id),
+        ))
+        if findings:
+            pending_findings.append((
+                transformed.get("service", line.service),
+                transformed.get("trace_id") or "",
+                findings,
+            ))
     span_rows = [
         (
             _seconds_to_dt(s.ts_seconds),
@@ -112,7 +138,7 @@ async def write_tick(
             s.env,
             json.dumps(s.tags),
         )
-        for s in iter_spans_for_tick(t_seconds)
+        for s in iter_spans_for_tick(t_seconds, tick_duration_seconds)
     ]
     rum_rows = [
         (
@@ -181,6 +207,16 @@ async def write_tick(
                 await conn.copy_records_to_table(
                     "rum_events", records=rum_rows, columns=RUM_COLUMNS
                 )
+            for service, log_id, findings in pending_findings:
+                for f in findings:
+                    await conn.execute(
+                        "INSERT INTO scrubber_findings "
+                        "(id, rule_id, service, log_id, excerpt_redacted, "
+                        "pattern_matched) VALUES "
+                        "(gen_random_uuid(), $1, $2, $3, $4, $5)",
+                        f["rule_id"], service, log_id or None,
+                        f["excerpt_redacted"], f["pattern_matched"],
+                    )
 
     return len(metric_rows), len(log_rows), len(span_rows), len(rum_rows)
 

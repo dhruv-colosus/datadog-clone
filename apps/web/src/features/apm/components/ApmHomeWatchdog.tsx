@@ -43,7 +43,7 @@ export function ApmHomeWatchdog() {
 
       {!isLoading && total === 0 && (
         <div className="flex flex-col items-center gap-3 px-4 py-10">
-          <Binoculars size={36} className="text-[#7c3aed]" />
+          <Binoculars size={36} className="text-[#1a73e8]" />
           <p className="text-[13px] text-[#5f6368]">
             Watchdog is monitoring your services. Any anomalies will appear here.
           </p>
@@ -101,7 +101,7 @@ function AnomalyCard({ anomaly }: { anomaly: ApmWatchdogAnomaly }) {
             Resolved
           </span>
           <span className="inline-flex items-center gap-1 text-[11.5px] text-[#5f6368]">
-            <Binoculars size={11} className="text-[#7c3aed]" />
+            <Binoculars size={11} className="text-[#1a73e8]" />
             <span className="font-semibold uppercase tracking-wide">
               {anomaly.kind}
             </span>

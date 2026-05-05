@@ -147,17 +147,26 @@ def _emit_span_tree(
     return [span] + children, total_duration_us
 
 
-def iter_spans_for_tick(t_seconds: float) -> Iterator[Span]:
-    """Yield all spans across all traces emitted this tick."""
+def iter_spans_for_tick(
+    t_seconds: float, tick_duration_seconds: float = 5.0,
+) -> Iterator[Span]:
+    """Yield all spans across all traces emitted this tick.
+
+    `tick_duration_seconds` scales the trace count so longer ticks produce
+    proportionally more traces — `_BASE_TRACES_PER_TICK` is calibrated for a
+    5s tick. Without this, calling the generator at a 60s cadence (the live
+    runner) emits 12x less data than at the legacy 5s cadence.
+    """
     rate_factor = get_settings().trace_rate_factor
+    duration_scale = max(0.1, tick_duration_seconds / 5.0)
     for entry_op in entry_operations():
-        rate = _BASE_TRACES_PER_TICK.get(entry_op.service, 2.0) * rate_factor
+        rate = _BASE_TRACES_PER_TICK.get(entry_op.service, 2.0) * rate_factor * duration_scale
         rng = seeded_rng("trace_count", entry_op.service, int(t_seconds))
         n_traces = _poisson(rng, rate)
         for i in range(n_traces):
             trace_rng = seeded_rng("trace", entry_op.service, int(t_seconds), i)
             trace_id = _new_trace_id(trace_rng)
-            start_offset = trace_rng.random() * 5.0  # within the 5s tick
+            start_offset = trace_rng.random() * tick_duration_seconds
             spans, _ = _emit_span_tree(
                 rng=trace_rng,
                 op=entry_op,

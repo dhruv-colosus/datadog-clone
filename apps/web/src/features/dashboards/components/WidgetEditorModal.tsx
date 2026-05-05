@@ -444,7 +444,7 @@ function SectionTitle({
 }) {
   return (
     <div className="flex items-center gap-3">
-      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#7c3aed] text-[12px] font-semibold text-white">
+      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#1a73e8] text-[12px] font-semibold text-white">
         {index}
       </span>
       <h2 className="text-[18px] font-medium text-[#202124]">{children}</h2>

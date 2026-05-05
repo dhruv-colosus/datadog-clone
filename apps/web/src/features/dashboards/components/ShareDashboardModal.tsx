@@ -463,7 +463,7 @@ function Step({
 }) {
   return (
     <div className="relative pb-6 pl-12 last:pb-0">
-      <div className="absolute left-0 top-0 flex h-8 w-8 items-center justify-center rounded-full bg-[#7c3aed] text-[13px] font-semibold text-white">
+      <div className="absolute left-0 top-0 flex h-8 w-8 items-center justify-center rounded-full bg-[#1a73e8] text-[13px] font-semibold text-white">
         {number}
       </div>
       <div className="absolute left-4 top-8 h-[calc(100%-2rem)] w-px bg-[#e8eaed] last:hidden" />

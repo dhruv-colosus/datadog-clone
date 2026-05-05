@@ -19,34 +19,113 @@ import {
 } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { useMonitorsStore } from "../store";
+import type { MuteDuration } from "../api";
+import {
+  useDeleteMonitors,
+  useMonitor,
+  useMuteMonitors,
+  useResolveMonitors,
+  useUnmuteMonitors,
+} from "../hooks";
 import type { Monitor, MonitorStatus } from "../types";
+import {
+  ConfirmationModal,
+  MuteDurationPopover,
+} from "./MonitorActionModals";
 
 type Props = {
   monitorId: string;
 };
 
+type DetailAction =
+  | { kind: "none" }
+  | { kind: "mute"; duration: MuteDuration }
+  | { kind: "unmute" }
+  | { kind: "delete" }
+  | { kind: "resolve" };
+
 export function MonitorDetail({ monitorId }: Props) {
   const router = useRouter();
-  const monitor = useMonitorsStore((s) =>
-    s.monitors.find((m) => m.id === monitorId),
-  );
+  const { data: monitor, isLoading, error } = useMonitor(monitorId);
+  const muteMutation = useMuteMonitors();
+  const unmuteMutation = useUnmuteMonitors();
+  const deleteMutation = useDeleteMonitors();
+  const resolveMutation = useResolveMonitors();
 
   const [autoInvestigate, setAutoInvestigate] = useState(false);
   const [visualization, setVisualization] = useState<
     "Evaluated Data" | "Source Data" | "Transitions"
   >("Evaluated Data");
 
+  const [muteOpen, setMuteOpen] = useState(false);
+  const muteWrapRef = useRef<HTMLDivElement>(null);
+  const [pending, setPending] = useState<DetailAction>({ kind: "none" });
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!muteOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (!muteWrapRef.current) return;
+      if (!muteWrapRef.current.contains(e.target as Node)) setMuteOpen(false);
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [muteOpen]);
+
+  const closeAction = () => {
+    setPending({ kind: "none" });
+    setActionError(null);
+  };
+
+  const runAction = async () => {
+    if (pending.kind === "none" || !monitor) return;
+    setActionError(null);
+    try {
+      if (pending.kind === "mute") {
+        await muteMutation.mutateAsync({
+          ids: [monitor.id],
+          duration: pending.duration,
+        });
+      } else if (pending.kind === "unmute") {
+        await unmuteMutation.mutateAsync([monitor.id]);
+      } else if (pending.kind === "delete") {
+        await deleteMutation.mutateAsync([monitor.id]);
+        closeAction();
+        router.push("/monitor/manage");
+        return;
+      } else if (pending.kind === "resolve") {
+        await resolveMutation.mutateAsync([monitor.id]);
+      }
+      closeAction();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Action failed");
+    }
+  };
+
+  const busy =
+    muteMutation.isPending ||
+    unmuteMutation.isPending ||
+    deleteMutation.isPending ||
+    resolveMutation.isPending;
+
+  if (isLoading && !monitor) {
+    return (
+      <div className="flex h-full items-center justify-center bg-white text-[14px] text-[#5f6368]">
+        Loading monitor…
+      </div>
+    );
+  }
+
   if (!monitor) {
     return (
       <div className="flex h-full items-center justify-center bg-white text-[14px] text-[#5f6368]">
         <div className="text-center">
-          <p>Monitor not found.</p>
+          <p>{error instanceof Error ? error.message : "Monitor not found."}</p>
           <button
             type="button"
-            onClick={() => router.push("/monitors/manage")}
+            onClick={() => router.push("/monitor/manage")}
             className="mt-2 text-[#1a73e8] hover:underline"
           >
             Back to monitors
@@ -64,13 +143,37 @@ export function MonitorDetail({ monitorId }: Props) {
       <div className="border-b border-[#dadce0] bg-white px-6 py-4">
         <div className="flex items-center gap-3 text-[13px] text-[#5f6368]">
           <StatusPill status={monitor.status} />
-          <button
-            type="button"
-            className="flex items-center gap-1 rounded p-1 text-[#5f6368] hover:bg-[#f1f3f4]"
-          >
-            <SpeakerHigh size={14} />
-            Mute
-          </button>
+          <div className="relative" ref={muteWrapRef}>
+            {monitor.muted ? (
+              <button
+                type="button"
+                onClick={() => setPending({ kind: "unmute" })}
+                className="flex items-center gap-1 rounded p-1 text-[#5f6368] hover:bg-[#f1f3f4]"
+              >
+                <SpeakerHigh size={14} />
+                Unmute
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setMuteOpen((v) => !v)}
+                aria-expanded={muteOpen}
+                className="flex items-center gap-1 rounded p-1 text-[#5f6368] hover:bg-[#f1f3f4]"
+              >
+                <SpeakerHigh size={14} />
+                Mute
+                <CaretDown size={10} weight="bold" />
+              </button>
+            )}
+            <MuteDurationPopover
+              open={muteOpen && !monitor.muted}
+              onSelect={(d) => {
+                setMuteOpen(false);
+                setPending({ kind: "mute", duration: d });
+              }}
+              onClose={() => setMuteOpen(false)}
+            />
+          </div>
           <span className="text-[#bdc1c6]">|</span>
           <span className="flex items-center gap-1.5 text-[#5f6368]">
             <Gauge size={14} />
@@ -121,10 +224,84 @@ export function MonitorDetail({ monitorId }: Props) {
           <div className="grid grid-cols-[260px_1fr_300px] gap-8">
             <EventTimeline />
             <MessageTemplate monitor={monitor} />
-            <NextSteps />
+            <NextSteps
+              monitor={monitor}
+              onMute={(d) => setPending({ kind: "mute", duration: d })}
+              onUnmute={() => setPending({ kind: "unmute" })}
+              onResolve={() => setPending({ kind: "resolve" })}
+              onDelete={() => setPending({ kind: "delete" })}
+            />
           </div>
         </div>
       </div>
+
+      <ConfirmationModal
+        open={pending.kind === "mute"}
+        title="Mute this monitor?"
+        body={
+          pending.kind === "mute" ? (
+            <>
+              Mute <strong>{monitor.name}</strong> for{" "}
+              <strong>
+                {pending.duration === "forever" ? "forever" : pending.duration}
+              </strong>
+              ?
+            </>
+          ) : null
+        }
+        confirmLabel="Mute"
+        busy={busy}
+        error={actionError}
+        onConfirm={runAction}
+        onClose={closeAction}
+      />
+
+      <ConfirmationModal
+        open={pending.kind === "unmute"}
+        title="Unmute this monitor?"
+        body={
+          <>
+            Are you sure you want to <strong>unmute</strong> this monitor?
+          </>
+        }
+        confirmLabel="Unmute"
+        busy={busy}
+        error={actionError}
+        onConfirm={runAction}
+        onClose={closeAction}
+      />
+
+      <ConfirmationModal
+        open={pending.kind === "delete"}
+        title="Delete this monitor?"
+        body={
+          <>
+            This will permanently delete <strong>{monitor.name}</strong>. This
+            action cannot be undone.
+          </>
+        }
+        confirmLabel="Delete"
+        confirmVariant="danger"
+        busy={busy}
+        error={actionError}
+        onConfirm={runAction}
+        onClose={closeAction}
+      />
+
+      <ConfirmationModal
+        open={pending.kind === "resolve"}
+        title="Resolve this monitor?"
+        body={
+          <>
+            Mark <strong>{monitor.name}</strong> as <strong>OK</strong>?
+          </>
+        }
+        confirmLabel="Resolve"
+        busy={busy}
+        error={actionError}
+        onConfirm={runAction}
+        onClose={closeAction}
+      />
     </div>
   );
 }
@@ -169,7 +346,7 @@ function DetailHeader() {
     <div className="flex items-center justify-between border-b border-[#dadce0] bg-white px-6 py-2">
       <div className="flex items-center gap-2 text-[13px] text-[#5f6368]">
         <Gauge size={16} className="text-[#202124]" />
-        <Link href="/monitors/manage" className="hover:text-[#1a73e8]">
+        <Link href="/monitor/manage" className="hover:text-[#1a73e8]">
           Monitors
         </Link>
         <span aria-hidden>›</span>
@@ -178,7 +355,7 @@ function DetailHeader() {
       <div className="flex items-center gap-2">
         <div className="flex">
           <Button className="gap-1.5 rounded-r-none">
-            <Sparkle size={12} weight="fill" className="text-[#7c3aed]" />
+            <Sparkle size={12} weight="fill" className="text-[#1a73e8]" />
             Investigate with Bits AI SRE
           </Button>
           <Button iconOnly className="rounded-l-none border-l-0">
@@ -546,16 +723,79 @@ function MessageTemplate({ monitor }: { monitor: Monitor }) {
   );
 }
 
-function NextSteps() {
+function NextSteps({
+  monitor,
+  onMute,
+  onUnmute,
+  onResolve,
+  onDelete,
+}: {
+  monitor: Monitor;
+  onMute: (duration: MuteDuration) => void;
+  onUnmute: () => void;
+  onResolve: () => void;
+  onDelete: () => void;
+}) {
+  const [muteOpen, setMuteOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!muteOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (!wrapRef.current) return;
+      if (!wrapRef.current.contains(e.target as Node)) setMuteOpen(false);
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [muteOpen]);
+
   return (
     <aside className="rounded-md border border-[#dadce0] bg-white p-4">
       <h3 className="text-[14px] font-medium text-[#202124]">Next Steps</h3>
+      <div className="relative" ref={wrapRef}>
+        {monitor.muted ? (
+          <button
+            type="button"
+            onClick={onUnmute}
+            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-md border border-[#bdc1c6] bg-white py-2 text-[13px] text-[#202124] hover:bg-[#f1f3f4]"
+          >
+            <SpeakerHigh size={14} />
+            Unmute
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setMuteOpen((v) => !v)}
+            aria-expanded={muteOpen}
+            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-md border border-[#bdc1c6] bg-white py-2 text-[13px] text-[#202124] hover:bg-[#f1f3f4]"
+          >
+            <SpeakerHigh size={14} />
+            Mute
+            <CaretDown size={10} weight="bold" />
+          </button>
+        )}
+        <MuteDurationPopover
+          open={muteOpen && !monitor.muted}
+          onSelect={(d) => {
+            setMuteOpen(false);
+            onMute(d);
+          }}
+          onClose={() => setMuteOpen(false)}
+        />
+      </div>
       <button
         type="button"
-        className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-md border border-[#bdc1c6] bg-white py-2 text-[13px] text-[#202124] hover:bg-[#f1f3f4]"
+        onClick={onResolve}
+        className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-md border border-[#bdc1c6] bg-white py-2 text-[13px] text-[#202124] hover:bg-[#f1f3f4]"
       >
-        <SpeakerHigh size={14} />
-        Mute
+        Resolve
+      </button>
+      <button
+        type="button"
+        onClick={onDelete}
+        className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-md border border-[#fca5a5] bg-white py-2 text-[13px] text-[#b1271b] hover:bg-[#fef2f2]"
+      >
+        Delete Monitor
       </button>
 
       <p className="mt-5 text-[12px] uppercase tracking-wide text-[#5f6368]">

@@ -14,8 +14,9 @@ import {
   Users,
 } from "@phosphor-icons/react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { deleteDashboard, fetchDashboards } from "../api";
 import { useDashboardsStore } from "../store";
 import type { Dashboard } from "../types";
 import { CreateDashboardModal } from "./CreateDashboardModal";
@@ -46,11 +47,49 @@ const PRESET_LISTS: PresetList[] = [
 
 export function DashboardsList() {
   const dashboards = useDashboardsStore((s) => s.dashboards);
-  const remove = useDashboardsStore((s) => s.remove);
+  const setDashboards = useDashboardsStore((s) => s.setDashboards);
+  const removeLocal = useDashboardsStore((s) => s.remove);
   const [search, setSearch] = useState("");
   const [activePreset, setActivePreset] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [showControls, setShowControls] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setLoadError(null);
+    fetchDashboards()
+      .then((list) => {
+        if (cancelled) return;
+        setDashboards(list);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setLoadError(err instanceof Error ? err.message : "Failed to load dashboards");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [setDashboards]);
+
+  const handleDelete = async (id: string) => {
+    const target = dashboards.find((d) => d.id === id);
+    removeLocal(id);
+    const serverId = target?.serverId ?? id;
+    try {
+      await deleteDashboard(serverId);
+    } catch {
+      // Server delete failed; refetch to restore truth.
+      fetchDashboards()
+        .then(setDashboards)
+        .catch(() => undefined);
+    }
+  };
 
   const filtered = useMemo(() => {
     let list = dashboards;
@@ -129,11 +168,23 @@ export function DashboardsList() {
                   : "All Dashboards"}
               </h2>
               <div className="mt-1 text-[13px] text-[#5f6368]">
-                <span className="font-semibold">{filtered.length}</span> total
+                {loading ? (
+                  "Loading…"
+                ) : loadError ? (
+                  <span className="text-[#b91c1c]">{loadError}</span>
+                ) : (
+                  <>
+                    <span className="font-semibold">{filtered.length}</span> total
+                  </>
+                )}
               </div>
             </div>
 
-            <DashboardTable dashboards={filtered} onDelete={remove} />
+            <DashboardTable
+              dashboards={filtered}
+              onDelete={handleDelete}
+              loading={loading && dashboards.length === 0}
+            />
           </div>
         </div>
       </div>
@@ -318,9 +369,11 @@ function Toggle({ on }: { on: boolean }) {
 function DashboardTable({
   dashboards,
   onDelete,
+  loading = false,
 }: {
   dashboards: Dashboard[];
   onDelete: (id: string) => void;
+  loading?: boolean;
 }) {
   return (
     <table className="w-full border-collapse text-[13px]">
@@ -345,7 +398,7 @@ function DashboardTable({
               colSpan={8}
               className="px-6 py-12 text-center text-[13px] text-[#5f6368]"
             >
-              No dashboards match your filters.
+              {loading ? "Loading dashboards…" : "No dashboards yet."}
             </td>
           </tr>
         )}

@@ -14,7 +14,7 @@ import { MiniBar } from "./MiniBar";
 
 type SortKey = "name" | "requests" | "totalTime" | "p95" | "errors" | "errorRate";
 
-const RESOURCE_COLORS = ["#a8c5f7", "#1a73e8", "#a142f4", "#e8b3a8", "#7c3aed"];
+const RESOURCE_COLORS = ["#a8c5f7", "#1a73e8", "#a142f4", "#e8b3a8", "#1a73e8"];
 
 function formatLatency(ms: number): string {
   if (ms >= 1000) return `${(ms / 1000).toFixed(2)}s`;
@@ -311,7 +311,7 @@ function ResourceRow({
           />
         </button>
       </td>
-      <td className="px-3 py-2.5 font-mono text-[12.5px] text-[#7c3aed]">
+      <td className="px-3 py-2.5 font-mono text-[12.5px] text-[#1a73e8]">
         {resource.name}
       </td>
       <td className="px-3 py-2.5 text-[#5f6368]"></td>

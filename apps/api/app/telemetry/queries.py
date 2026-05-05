@@ -1257,12 +1257,22 @@ async def apm_service_map(
     """
     pool = await get_pool()
 
-    where = ["ts >= NOW() - $1"]
-    params: list[Any] = [dt.timedelta(seconds=lookback_seconds)]
+    cutoff = dt.datetime.now(dt.timezone.utc) - dt.timedelta(seconds=lookback_seconds)
+
+    node_where = ["ts >= $1"]
+    node_params: list[Any] = [cutoff]
     if env:
-        params.append(env)
-        where.append(f"env = ${len(params)}")
-    where_sql = " AND ".join(where)
+        node_params.append(env)
+        node_where.append(f"env = ${len(node_params)}")
+    node_where_sql = " AND ".join(node_where)
+
+    edge_where = ["child.ts >= $1", "parent.ts >= $1"]
+    edge_params: list[Any] = [cutoff]
+    if env:
+        edge_params.append(env)
+        edge_where.append(f"child.env = ${len(edge_params)}")
+    edge_where.append("parent.service <> child.service")
+    edge_where_sql = " AND ".join(edge_where)
 
     nodes_sql = f"""
         SELECT
@@ -1272,7 +1282,7 @@ async def apm_service_map(
             SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END) AS errors,
             percentile_disc(0.95) WITHIN GROUP (ORDER BY duration_us) AS p95_us
         FROM spans
-        WHERE {where_sql}
+        WHERE {node_where_sql}
         GROUP BY service
     """
 
@@ -1284,14 +1294,13 @@ async def apm_service_map(
         JOIN spans parent
           ON child.parent_span_id = parent.span_id
          AND child.trace_id = parent.trace_id
-        WHERE child.{where_sql.replace("ts", "child.ts")}
-          AND parent.service <> child.service
+        WHERE {edge_where_sql}
         GROUP BY parent.service, child.service
     """
 
     async with pool.acquire() as conn:
-        node_rows = await conn.fetch(nodes_sql, *params)
-        edge_rows = await conn.fetch(edges_sql, *params)
+        node_rows = await conn.fetch(nodes_sql, *node_params)
+        edge_rows = await conn.fetch(edges_sql, *edge_params)
 
     nodes = []
     for r in node_rows:

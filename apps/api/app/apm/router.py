@@ -233,12 +233,22 @@ async def get_service_map(
     nodes = []
     for s in SERVICES:
         n = nodes_by_name[s.name]
+        err_rate = float(n.get("errorRate") or 0.0)
+        if err_rate > 0.05:
+            health = "critical"
+        elif err_rate > 0.01:
+            health = "warning"
+        else:
+            health = "ok"
+        inferred = s.type in ("db", "cache")
         nodes.append({
             **n,
             "type": s.type,
             "language": s.language or "n/a",
             "team": s.team,
             "tier": s.tier,
+            "healthState": health,
+            "inferred": inferred,
         })
 
     seen = {(e["caller"], e["callee"]) for e in live["edges"]}
@@ -257,6 +267,11 @@ async def get_service_map(
                 if e["caller"] == d.caller and e["callee"] == d.callee:
                     e["kind"] = d.kind
                     break
+    for e in edges:
+        calls = int(e.get("calls") or 0)
+        errors = int(e.get("errors") or 0)
+        e["callRate"] = calls / max(1, lookbackSeconds)
+        e["errorRate"] = (errors / calls) if calls else 0.0
     return {"nodes": nodes, "edges": edges}
 
 

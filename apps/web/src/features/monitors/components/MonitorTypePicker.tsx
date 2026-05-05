@@ -23,7 +23,6 @@ import {
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { MONITOR_TYPE_OPTIONS } from "../mock-data";
-import { useMonitorsStore } from "../store";
 import type { MonitorType } from "../types";
 
 const TYPE_ICONS: Record<MonitorType, Icon> = {
@@ -52,19 +51,14 @@ const TYPE_ICONS: Record<MonitorType, Icon> = {
 
 export function MonitorTypePicker() {
   const router = useRouter();
-  const create = useMonitorsStore((s) => s.create);
   const [selected, setSelected] = useState<MonitorType>("metric");
 
   const selectedOption =
     MONITOR_TYPE_OPTIONS.find((o) => o.id === selected) ??
     MONITOR_TYPE_OPTIONS[0];
 
-  const submit = () => {
-    const m = create({
-      name: `${selectedOption.label} monitor`,
-      type: selected,
-    });
-    router.push(`/monitors/${m.id}`);
+  const goConfigure = () => {
+    router.push(`/monitor/configure?type=${encodeURIComponent(selected)}`);
   };
 
   return (
@@ -128,7 +122,7 @@ export function MonitorTypePicker() {
             <p className="text-[13px] text-[#5f6368]">Pick a monitor type</p>
             <button
               type="button"
-              onClick={submit}
+              onClick={goConfigure}
               className="rounded-md bg-[#1a73e8] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#1765cc]"
             >
               {selectedOption.configureLabel}
@@ -235,12 +229,12 @@ function ChartIllustration({ alert }: { alert?: boolean } = {}) {
 
 function DatadogLogo() {
   return (
-    <div className="flex h-[110px] w-[110px] items-center justify-center rounded-md border border-[#7c3aed] bg-white">
+    <div className="flex h-[110px] w-[110px] items-center justify-center rounded-md border border-[#1a73e8] bg-white">
       <div className="text-center">
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#7c3aed] text-[20px] font-bold text-white">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#1a73e8] text-[20px] font-bold text-white">
           🐶
         </div>
-        <p className="mt-1 text-[10px] font-bold tracking-widest text-[#7c3aed]">
+        <p className="mt-1 text-[10px] font-bold tracking-widest text-[#1a73e8]">
           DATADOG
         </p>
       </div>

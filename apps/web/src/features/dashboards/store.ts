@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { MOCK_DASHBOARDS } from "./mock-data";
 import type {
   Dashboard,
   DashboardKind,
@@ -30,6 +29,8 @@ function defaultName(): string {
 
 type DashboardsState = {
   dashboards: Dashboard[];
+  setDashboards: (dashboards: Dashboard[]) => void;
+  upsertDashboard: (dashboard: Dashboard) => void;
   create: (input: { name?: string; kind: DashboardKind; teams?: string[] }) => Dashboard;
   remove: (id: string) => void;
   rename: (id: string, name: string) => void;
@@ -49,7 +50,16 @@ type DashboardsState = {
 export const useDashboardsStore = create<DashboardsState>()(
   persist(
     (set) => ({
-      dashboards: MOCK_DASHBOARDS,
+      dashboards: [],
+      setDashboards: (dashboards) => set({ dashboards }),
+      upsertDashboard: (dashboard) =>
+        set((s) => {
+          const idx = s.dashboards.findIndex((d) => d.id === dashboard.id);
+          if (idx === -1) return { dashboards: [dashboard, ...s.dashboards] };
+          const next = [...s.dashboards];
+          next[idx] = { ...next[idx], ...dashboard };
+          return { dashboards: next };
+        }),
       create: ({ name, kind, teams }) => {
         const dashboard: Dashboard = {
           id: uid("db"),
@@ -147,7 +157,7 @@ export const useDashboardsStore = create<DashboardsState>()(
           ),
         })),
     }),
-    { name: "datadog-clone:dashboards:v2" },
+    { name: "datadog-clone:dashboards:v3" },
   ),
 );
 

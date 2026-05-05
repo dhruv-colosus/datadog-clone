@@ -26,11 +26,11 @@ export function ApmHomeRecommendations() {
     <section className="rounded-lg border border-[#e8eaed] bg-white">
       <header className="flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-2">
-          <Lightbulb size={16} weight="fill" className="text-[#7c3aed]" />
+          <Lightbulb size={16} weight="fill" className="text-[#1a73e8]" />
           <span className="text-[14px] font-semibold text-[#202124]">
             Recommendations
           </span>
-          <span className="rounded-md bg-[#f3e8fd] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#7c3aed]">
+          <span className="rounded-md bg-[#f3e8fd] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#1a73e8]">
             New
           </span>
         </div>
@@ -96,7 +96,7 @@ function TypeSelect({
 function EmptyState() {
   return (
     <div className="flex flex-col items-center gap-4 px-6 pb-10 pt-4">
-      <Lightbulb size={42} weight="fill" className="text-[#7c3aed]" />
+      <Lightbulb size={42} weight="fill" className="text-[#1a73e8]" />
       <h3 className="text-[18px] font-semibold text-[#202124]">
         No recommendations detected
       </h3>

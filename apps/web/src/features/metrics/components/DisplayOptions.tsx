@@ -34,6 +34,10 @@ export function DisplayOptions() {
   const setOrderBy = useExplorerStore((s) => s.setOrderBy);
   const toggleReverse = useExplorerStore((s) => s.toggleReverse);
 
+  const usesLineStyling =
+    visualization === "line" || visualization === "area";
+  const usesOrdering = visualization !== "query_value";
+
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 py-2 text-[13px]">
       <Field label="Display:">
@@ -42,20 +46,24 @@ export function DisplayOptions() {
           onChange={setVisualization}
         />
       </Field>
-      <Field label="Style:">
-        <SimpleDropdown
-          value={lineStyle}
-          options={LINE_STYLES}
-          onChange={(v) => setLineStyle(v as LineStyle)}
-        />
-      </Field>
-      <Field label="Stroke:">
-        <SimpleDropdown
-          value={lineStroke}
-          options={LINE_STROKES}
-          onChange={(v) => setLineStroke(v as LineStroke)}
-        />
-      </Field>
+      {usesLineStyling && (
+        <>
+          <Field label="Style:">
+            <SimpleDropdown
+              value={lineStyle}
+              options={LINE_STYLES}
+              onChange={(v) => setLineStyle(v as LineStyle)}
+            />
+          </Field>
+          <Field label="Stroke:">
+            <SimpleDropdown
+              value={lineStroke}
+              options={LINE_STROKES}
+              onChange={(v) => setLineStroke(v as LineStroke)}
+            />
+          </Field>
+        </>
+      )}
       <Separator />
       <Field label="Color:">
         <ColorPaletteDropdown
@@ -63,15 +71,23 @@ export function DisplayOptions() {
           onChange={setColorPalette}
         />
       </Field>
-      <Separator />
-      <Field label="Order by:">
-        <SimpleDropdown
-          value={orderBy}
-          options={ORDER_BYS}
-          onChange={(v) => setOrderBy(v as OrderBy)}
-        />
-      </Field>
-      <Toggle checked={reverseOrder} onChange={toggleReverse} label="Reverse" />
+      {usesOrdering && (
+        <>
+          <Separator />
+          <Field label="Order by:">
+            <SimpleDropdown
+              value={orderBy}
+              options={ORDER_BYS}
+              onChange={(v) => setOrderBy(v as OrderBy)}
+            />
+          </Field>
+          <Toggle
+            checked={reverseOrder}
+            onChange={toggleReverse}
+            label="Reverse"
+          />
+        </>
+      )}
     </div>
   );
 }

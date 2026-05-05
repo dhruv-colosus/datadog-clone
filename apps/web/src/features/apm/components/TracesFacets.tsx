@@ -152,7 +152,7 @@ function ServiceDot({ service }: { service: string }) {
     payments: "bg-[#fbbc04]",
     worker: "bg-[#f59e0b]",
     caddy: "bg-[#10b981]",
-    postgres: "bg-[#7c3aed]",
+    postgres: "bg-[#1a73e8]",
     redis: "bg-[#e8b3a8]",
   };
   const cls = map[service] ?? "bg-[#5f6368]";

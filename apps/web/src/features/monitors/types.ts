@@ -53,6 +53,7 @@ export type Monitor = {
   runbookSteps: string[];
   team: string;
   muted: boolean;
+  mutedUntilMs?: number | null;
 };
 
 export type MonitorTypeOption = {

@@ -1,5 +1,5 @@
 import { MonitorsList } from "@/features/monitors";
 
-export default function MonitorsManagePage() {
+export default function MonitorManagePage() {
   return <MonitorsList />;
 }

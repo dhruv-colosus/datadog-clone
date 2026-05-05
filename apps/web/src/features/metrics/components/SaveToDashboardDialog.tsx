@@ -82,7 +82,7 @@ export function SaveToDashboardDialog({ open, onClose }: Props) {
               id="widget-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full rounded-md border border-[#bdc1c6] px-3 py-2 text-[13px] outline-none focus:border-[#7c3aed]"
+              className="w-full rounded-md border border-[#bdc1c6] px-3 py-2 text-[13px] outline-none focus:border-[#1a73e8]"
             />
           </div>
           <div>
@@ -96,7 +96,7 @@ export function SaveToDashboardDialog({ open, onClose }: Props) {
               id="dashboard"
               value={dashboardId}
               onChange={(e) => setDashboardId(e.target.value)}
-              className="w-full rounded-md border border-[#bdc1c6] bg-white px-3 py-2 text-[13px] outline-none focus:border-[#7c3aed]"
+              className="w-full rounded-md border border-[#bdc1c6] bg-white px-3 py-2 text-[13px] outline-none focus:border-[#1a73e8]"
             >
               {(dashboards ?? []).map((d) => (
                 <option key={d.id} value={d.id}>

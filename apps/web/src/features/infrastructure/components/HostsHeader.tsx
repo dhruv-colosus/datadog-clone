@@ -1,6 +1,6 @@
 "use client";
 
-import { HOSTS, LIST_HOSTS } from "../mock-data";
+import { useHosts } from "../hooks";
 import { HexLogo } from "./HexLogo";
 import { TimeRangePicker } from "./TimeRangePicker";
 
@@ -10,9 +10,9 @@ type Props = {
 };
 
 export function HostsHeader({ title, rightSlot }: Props) {
-  const dataset = title === "Host List" ? LIST_HOSTS : HOSTS;
-  const total = dataset.length;
-  const up = dataset.filter((h) => h.status !== "down").length;
+  const { hosts } = useHosts();
+  const total = hosts.length;
+  const up = hosts.filter((h) => h.status !== "down").length;
 
   return (
     <header className="flex items-center gap-3 border-b border-[#e8eaed] bg-white px-4 py-3">

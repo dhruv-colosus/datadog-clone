@@ -100,6 +100,21 @@ async def admin_backfill(
     return {"ok": True, **counts}
 
 
+@router.post("/backfill-recent")
+async def admin_backfill_recent(
+    lookbackSeconds: int = Query(default=3600, ge=60, le=86400),
+    stepSeconds: int = Query(default=30, ge=5, le=300),
+    _: None = Depends(require_admin_key),
+) -> dict:
+    """Quick recent-window backfill — fills the last `lookbackSeconds` of
+    telemetry so APM/logs/metrics dashboards have meaningful data without
+    waiting for a multi-day full backfill."""
+    counts = await telemetry_backfill.run_recent_window_backfill(
+        lookback_seconds=lookbackSeconds, step_seconds=stepSeconds,
+    )
+    return {"ok": True, **counts}
+
+
 @router.post("/reseed-topology")
 async def admin_reseed_topology(
     _: None = Depends(require_admin_key),

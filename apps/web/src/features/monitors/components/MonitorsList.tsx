@@ -11,12 +11,24 @@ import {
   Gear,
   Plus,
   SidebarSimple,
+  SpeakerSlash,
 } from "@phosphor-icons/react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { useMonitorsStore } from "../store";
+import type { MuteDuration } from "../api";
+import {
+  useDeleteMonitors,
+  useMonitors,
+  useMuteMonitors,
+  useResolveMonitors,
+  useUnmuteMonitors,
+} from "../hooks";
 import type { Monitor, MonitorPack, MonitorStatus } from "../types";
+import {
+  ConfirmationModal,
+  MuteDurationPopover,
+} from "./MonitorActionModals";
 
 type StatusFilter = "Triggered" | "Alert" | "Warn" | "No Data" | "OK";
 
@@ -43,8 +55,20 @@ const STATUS_DOT: Record<StatusFilter, string> = {
   OK: "bg-[#137333]",
 };
 
+type ActionState =
+  | { kind: "none" }
+  | { kind: "mute"; duration: MuteDuration; ids: string[] }
+  | { kind: "unmute"; ids: string[] }
+  | { kind: "delete"; ids: string[] }
+  | { kind: "resolve"; ids: string[] };
+
 export function MonitorsList() {
-  const monitors = useMonitorsStore((s) => s.monitors);
+  const { data: monitors = [], isLoading, error } = useMonitors();
+  const muteMutation = useMuteMonitors();
+  const unmuteMutation = useUnmuteMonitors();
+  const deleteMutation = useDeleteMonitors();
+  const resolveMutation = useResolveMonitors();
+
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<
     "List" | "Triggered" | "Downtimes" | "Quality"
@@ -63,6 +87,12 @@ export function MonitorsList() {
   const [expandedPacks, setExpandedPacks] = useState<Set<MonitorPack>>(
     new Set(["rum", "host"]),
   );
+
+  const [muteOpen, setMuteOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<ActionState>({
+    kind: "none",
+  });
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     let list = monitors;
@@ -122,6 +152,22 @@ export function MonitorsList() {
     return map;
   }, [filtered]);
 
+  // Drop selections that no longer match the latest list (e.g. after delete).
+  useEffect(() => {
+    setSelected((prev) => {
+      const ids = new Set(monitors.map((m) => m.id));
+      let changed = false;
+      const next = new Set(prev);
+      for (const id of next) {
+        if (!ids.has(id)) {
+          next.delete(id);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [monitors]);
+
   const togglePack = (pack: MonitorPack) =>
     setExpandedPacks((prev) => {
       const next = new Set(prev);
@@ -175,6 +221,72 @@ export function MonitorsList() {
       for (const m of filtered) next.add(m.id);
       return next;
     });
+
+  const selectedIds = useMemo(() => Array.from(selected), [selected]);
+  const selectedMonitors = useMemo(
+    () => monitors.filter((m) => selected.has(m.id)),
+    [monitors, selected],
+  );
+  const allSelectedAreMuted =
+    selectedMonitors.length > 0 && selectedMonitors.every((m) => m.muted);
+
+  const closeAction = () => {
+    setPendingAction({ kind: "none" });
+    setActionError(null);
+  };
+
+  const onMuteSelect = (duration: MuteDuration) => {
+    setMuteOpen(false);
+    setPendingAction({ kind: "mute", duration, ids: selectedIds });
+    setActionError(null);
+  };
+
+  const onUnmuteRequest = () => {
+    if (selectedIds.length === 0) return;
+    setPendingAction({ kind: "unmute", ids: selectedIds });
+    setActionError(null);
+  };
+
+  const onDeleteRequest = () => {
+    if (selectedIds.length === 0) return;
+    setPendingAction({ kind: "delete", ids: selectedIds });
+    setActionError(null);
+  };
+
+  const onResolveRequest = () => {
+    if (selectedIds.length === 0) return;
+    setPendingAction({ kind: "resolve", ids: selectedIds });
+    setActionError(null);
+  };
+
+  const runAction = async () => {
+    if (pendingAction.kind === "none") return;
+    setActionError(null);
+    try {
+      if (pendingAction.kind === "mute") {
+        await muteMutation.mutateAsync({
+          ids: pendingAction.ids,
+          duration: pendingAction.duration,
+        });
+      } else if (pendingAction.kind === "unmute") {
+        await unmuteMutation.mutateAsync(pendingAction.ids);
+      } else if (pendingAction.kind === "delete") {
+        await deleteMutation.mutateAsync(pendingAction.ids);
+        setSelected(new Set());
+      } else if (pendingAction.kind === "resolve") {
+        await resolveMutation.mutateAsync(pendingAction.ids);
+      }
+      closeAction();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Action failed");
+    }
+  };
+
+  const busy =
+    muteMutation.isPending ||
+    unmuteMutation.isPending ||
+    deleteMutation.isPending ||
+    resolveMutation.isPending;
 
   return (
     <div className="flex h-full w-full flex-col bg-white text-[#202124]">
@@ -271,11 +383,41 @@ export function MonitorsList() {
                 </tr>
                 <tr className="border-b border-[#dadce0] bg-white">
                   <th colSpan={6} className="px-3 py-2">
-                    <BulkActionBar selectedCount={selected.size} />
+                    <BulkActionBar
+                      selectedCount={selected.size}
+                      muteOpen={muteOpen}
+                      onMuteToggle={() => setMuteOpen((v) => !v)}
+                      onMuteSelect={onMuteSelect}
+                      onMuteClose={() => setMuteOpen(false)}
+                      allSelectedMuted={allSelectedAreMuted}
+                      onUnmute={onUnmuteRequest}
+                      onResolve={onResolveRequest}
+                      onDelete={onDeleteRequest}
+                    />
                   </th>
                 </tr>
               </thead>
               <tbody>
+                {isLoading && monitors.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="px-6 py-12 text-center text-[13px] text-[#5f6368]"
+                    >
+                      Loading monitors…
+                    </td>
+                  </tr>
+                )}
+                {error && (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="px-6 py-12 text-center text-[13px] text-[#991b1b]"
+                    >
+                      {error instanceof Error ? error.message : "Failed to load"}
+                    </td>
+                  </tr>
+                )}
                 {Array.from(grouped.entries()).map(([pack, items]) => (
                   <PackGroup
                     key={pack}
@@ -287,7 +429,7 @@ export function MonitorsList() {
                     onToggleSelect={toggleSelect}
                   />
                 ))}
-                {grouped.size === 0 && (
+                {!isLoading && !error && grouped.size === 0 && (
                   <tr>
                     <td
                       colSpan={6}
@@ -302,6 +444,111 @@ export function MonitorsList() {
           </div>
         </div>
       </div>
+
+      <ConfirmationModal
+        open={pendingAction.kind === "mute"}
+        title="Mute these monitors?"
+        body={
+          pendingAction.kind === "mute" ? (
+            <>
+              Mute{" "}
+              <strong>
+                {pendingAction.ids.length} monitor
+                {pendingAction.ids.length === 1 ? "" : "s"}
+              </strong>{" "}
+              for{" "}
+              <strong>
+                {pendingAction.duration === "forever"
+                  ? "forever"
+                  : pendingAction.duration}
+              </strong>
+              ?
+            </>
+          ) : null
+        }
+        confirmLabel="Mute"
+        busy={busy}
+        error={actionError}
+        onConfirm={runAction}
+        onClose={closeAction}
+      />
+
+      <ConfirmationModal
+        open={pendingAction.kind === "unmute"}
+        title={
+          pendingAction.kind === "unmute" && pendingAction.ids.length === 1
+            ? "Unmute this monitor?"
+            : "Unmute these monitors?"
+        }
+        body={
+          pendingAction.kind === "unmute" ? (
+            pendingAction.ids.length === 1 ? (
+              <>
+                Are you sure you want to <strong>unmute</strong> this monitor?
+              </>
+            ) : (
+              <>
+                Are you sure you want to <strong>unmute</strong>{" "}
+                {pendingAction.ids.length} monitors?
+              </>
+            )
+          ) : null
+        }
+        confirmLabel="Unmute"
+        busy={busy}
+        error={actionError}
+        onConfirm={runAction}
+        onClose={closeAction}
+      />
+
+      <ConfirmationModal
+        open={pendingAction.kind === "delete"}
+        title={
+          pendingAction.kind === "delete" && pendingAction.ids.length === 1
+            ? "Delete this monitor?"
+            : "Delete these monitors?"
+        }
+        body={
+          pendingAction.kind === "delete" ? (
+            <>
+              This will permanently delete{" "}
+              <strong>
+                {pendingAction.ids.length} monitor
+                {pendingAction.ids.length === 1 ? "" : "s"}
+              </strong>
+              . This action cannot be undone.
+            </>
+          ) : null
+        }
+        confirmLabel="Delete"
+        confirmVariant="danger"
+        busy={busy}
+        error={actionError}
+        onConfirm={runAction}
+        onClose={closeAction}
+      />
+
+      <ConfirmationModal
+        open={pendingAction.kind === "resolve"}
+        title="Resolve these monitors?"
+        body={
+          pendingAction.kind === "resolve" ? (
+            <>
+              Mark{" "}
+              <strong>
+                {pendingAction.ids.length} monitor
+                {pendingAction.ids.length === 1 ? "" : "s"}
+              </strong>{" "}
+              as <strong>OK</strong>?
+            </>
+          ) : null
+        }
+        confirmLabel="Resolve"
+        busy={busy}
+        error={actionError}
+        onConfirm={runAction}
+        onClose={closeAction}
+      />
     </div>
   );
 }
@@ -351,7 +598,7 @@ function Header({
           <Button>Browse Templates</Button>
           <div className="flex">
             <Link
-              href="/monitors/create"
+              href="/monitor/create"
               className="inline-flex h-7 items-center gap-1 rounded-l-md border border-transparent bg-[#1a73e8] px-2 text-[13px] font-normal text-white transition-colors hover:bg-[#1765cc]"
             >
               <Plus size={12} weight="bold" />
@@ -447,7 +694,7 @@ function LiveMonitoringBanner({ total }: { total: number }) {
         </div>
         <button
           type="button"
-          className="inline-flex items-center gap-2 rounded-md bg-[#7c3aed] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#6d28d9]"
+          className="inline-flex items-center gap-2 rounded-md bg-[#1a73e8] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#6d28d9]"
         >
           <Bell size={14} weight="fill" />
           Next, Set Up Notifications
@@ -681,8 +928,40 @@ function Toggle({ on }: { on: boolean }) {
   );
 }
 
-function BulkActionBar({ selectedCount }: { selectedCount: number }) {
+function BulkActionBar({
+  selectedCount,
+  muteOpen,
+  onMuteToggle,
+  onMuteSelect,
+  onMuteClose,
+  allSelectedMuted,
+  onUnmute,
+  onResolve,
+  onDelete,
+}: {
+  selectedCount: number;
+  muteOpen: boolean;
+  onMuteToggle: () => void;
+  onMuteSelect: (d: MuteDuration) => void;
+  onMuteClose: () => void;
+  allSelectedMuted: boolean;
+  onUnmute: () => void;
+  onResolve: () => void;
+  onDelete: () => void;
+}) {
   const disabled = selectedCount === 0;
+  const muteWrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!muteOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (!muteWrapRef.current) return;
+      if (!muteWrapRef.current.contains(e.target as Node)) onMuteClose();
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [muteOpen, onMuteClose]);
+
   return (
     <div className="flex items-center gap-2 text-[13px] text-[#5f6368]">
       {selectedCount > 0 ? (
@@ -691,13 +970,31 @@ function BulkActionBar({ selectedCount }: { selectedCount: number }) {
           {selectedCount === 1 ? "" : "s"} selected
         </span>
       ) : null}
-      <Button disabled={disabled} size="sm">
-        Mute <CaretDown size={10} weight="bold" />
-      </Button>
-      <Button disabled={disabled} size="sm">
+      <div className="relative" ref={muteWrapRef}>
+        <Button
+          disabled={disabled}
+          size="sm"
+          onClick={onMuteToggle}
+          aria-expanded={muteOpen}
+        >
+          Mute <CaretDown size={10} weight="bold" />
+        </Button>
+        <MuteDurationPopover
+          open={muteOpen && !disabled}
+          onSelect={onMuteSelect}
+          onClose={onMuteClose}
+        />
+      </div>
+      {allSelectedMuted && (
+        <Button disabled={disabled} size="sm" onClick={onUnmute}>
+          <SpeakerSlash size={12} />
+          Unmute
+        </Button>
+      )}
+      <Button disabled={disabled} size="sm" onClick={onResolve}>
         Resolve
       </Button>
-      <Button disabled={disabled} size="sm">
+      <Button disabled={disabled} size="sm" onClick={onDelete}>
         Delete
       </Button>
       <Button disabled={disabled} size="sm">
@@ -705,7 +1002,7 @@ function BulkActionBar({ selectedCount }: { selectedCount: number }) {
       </Button>
       <Button disabled={disabled} size="sm">
         Edit Recipients{" "}
-        <span className="rounded-sm bg-[#f3e8ff] px-1 text-[10px] font-semibold text-[#7c3aed]">
+        <span className="rounded-sm bg-[#e8f0fe] px-1 text-[10px] font-semibold text-[#1a73e8]">
           NEW
         </span>
       </Button>
@@ -714,7 +1011,7 @@ function BulkActionBar({ selectedCount }: { selectedCount: number }) {
       </Button>
       <Button disabled={disabled} size="sm">
         Export to Terraform{" "}
-        <span className="rounded-sm bg-[#f3e8ff] px-1 text-[10px] font-semibold text-[#7c3aed]">
+        <span className="rounded-sm bg-[#e8f0fe] px-1 text-[10px] font-semibold text-[#1a73e8]">
           NEW
         </span>
       </Button>
@@ -738,7 +1035,7 @@ function PackGroup({
   onToggleSelect: (id: string) => void;
 }) {
   const PackIcon = pack === "rum" ? Gauge : Cube;
-  const iconColor = pack === "rum" ? "text-[#7c3aed]" : "text-[#7c3aed]";
+  const iconColor = pack === "rum" ? "text-[#1a73e8]" : "text-[#1a73e8]";
   const allSelected = items.every((m) => selected.has(m.id));
   const someSelected = items.some((m) => selected.has(m.id));
 
@@ -817,10 +1114,10 @@ function MonitorRow({
       <td className="px-3 py-2">
         <StatusPill status={monitor.status} />
       </td>
-      <td className="px-3 py-2 text-[#5f6368]"></td>
+      <td className="px-3 py-2 text-[#5f6368]">{formatMutedLeft(monitor)}</td>
       <td className="px-3 py-2">
         <Link
-          href={`/monitors/${monitor.id}`}
+          href={`/monitor/${monitor.id}`}
           className="text-[#202124] hover:text-[#1a73e8]"
         >
           {monitor.name}
@@ -857,4 +1154,24 @@ function StatusPill({ status }: { status: MonitorStatus }) {
       {label}
     </span>
   );
+}
+
+function formatMutedLeft(monitor: Monitor): string {
+  if (!monitor.muted) return "";
+  if (!monitor.mutedUntilMs) return "Forever";
+  const ms = monitor.mutedUntilMs - Date.now();
+  if (ms <= 0) return "";
+  const minutes = Math.floor(ms / 60_000);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = minutes / 60;
+  if (hours < 24) {
+    const whole = Math.floor(hours);
+    const frac = hours - whole;
+    if (frac >= 0.7) return `${whole}¾h`;
+    if (frac >= 0.45) return `${whole}½h`;
+    if (frac >= 0.2) return `${whole}¼h`;
+    return `${whole}h`;
+  }
+  const days = Math.floor(hours / 24);
+  return `${days}d`;
 }

@@ -32,6 +32,18 @@ async def rum_events_is_empty(pool: asyncpg.Pool) -> bool:
         return row is None
 
 
+async def recent_spans_count(pool: asyncpg.Pool, lookback_seconds: int = 900) -> int:
+    """How many spans in the last `lookback_seconds`. Used to decide whether
+    the APM dashboards have enough live data to render meaningfully."""
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT COUNT(*) AS c FROM spans "
+            "WHERE ts >= NOW() - ($1::int * INTERVAL '1 second')",
+            lookback_seconds,
+        )
+        return int(row["c"] or 0)
+
+
 async def run_backfill(days: int | None = None) -> dict[str, int]:
     """Backfill `days` days of history. Returns row counts."""
     settings = get_settings()
@@ -54,7 +66,10 @@ async def run_backfill(days: int | None = None) -> dict[str, int]:
     total_m = total_l = total_s = total_r = 0
     for i in range(total_steps):
         t_seconds = (start + dt.timedelta(seconds=i * interval)).timestamp()
-        n_m, n_l, n_s, n_r = await write_tick(pool, t_seconds, spike_multipliers={})
+        n_m, n_l, n_s, n_r = await write_tick(
+            pool, t_seconds, spike_multipliers={},
+            tick_duration_seconds=float(interval),
+        )
         total_m += n_m
         total_l += n_l
         total_s += n_s
@@ -79,22 +94,84 @@ async def run_backfill(days: int | None = None) -> dict[str, int]:
     }
 
 
-async def run_backfill_if_empty() -> dict[str, int] | None:
-    """Helper for lifespan: run backfill only when metric_points has no rows.
+async def run_recent_window_backfill(
+    *,
+    lookback_seconds: int = 3600,
+    step_seconds: int = 30,
+) -> dict[str, int]:
+    """Quickly populate the last `lookback_seconds` of telemetry.
 
-    If metrics/logs/spans were already populated by an earlier boot but RUM
-    is empty (post-migration upgrade), top up RUM only.
+    Used on lifespan startup whenever the spans table is sparse (e.g. fresh
+    DB, or runner has only fired a few ticks). Walks back from now at a
+    tighter `step_seconds` cadence than the live runner so APM dashboards
+    have meaningful data within seconds of boot, not minutes.
+    """
+    pool = await get_pool()
+    now = dt.datetime.now(dt.timezone.utc)
+    start = now - dt.timedelta(seconds=lookback_seconds)
+    total_steps = max(1, lookback_seconds // step_seconds)
+    started = time.perf_counter()
+    total_m = total_l = total_s = total_r = 0
+    for i in range(total_steps):
+        t_seconds = (start + dt.timedelta(seconds=i * step_seconds)).timestamp()
+        n_m, n_l, n_s, n_r = await write_tick(
+            pool, t_seconds, spike_multipliers={},
+            tick_duration_seconds=float(step_seconds),
+        )
+        total_m += n_m
+        total_l += n_l
+        total_s += n_s
+        total_r += n_r
+    elapsed = time.perf_counter() - started
+    logger.info(
+        "telemetry.backfill: recent-window done lookback=%ds step=%ds "
+        "metrics=%d logs=%d spans=%d rum=%d in %.1fs",
+        lookback_seconds, step_seconds, total_m, total_l, total_s, total_r, elapsed,
+    )
+    return {
+        "metrics": total_m,
+        "logs": total_l,
+        "spans": total_s,
+        "rum": total_r,
+    }
+
+
+async def run_backfill_if_empty() -> dict[str, int] | None:
+    """Helper for lifespan: ensure dashboards have data on startup.
+
+    Three cases handled:
+    - Fresh DB (metric_points empty): full multi-day backfill if BACKFILL_ON_BOOT,
+      otherwise a 1-hour recent-window backfill so APM/logs/metrics aren't blank.
+    - Older deploy missing rum_events: RUM-only backfill.
+    - APM table sparse (fewer than ~30 spans in last 15 min): top up the recent
+      window so /apm/services and /apm/service-map render meaningful traffic.
     """
     settings = get_settings()
-    if not settings.backfill_on_boot:
-        return None
     pool = await get_pool()
+
     if await metric_points_is_empty(pool):
-        return await run_backfill()
+        if settings.backfill_on_boot:
+            return await run_backfill()
+        logger.info(
+            "telemetry.backfill: BACKFILL_ON_BOOT=false but DB empty — "
+            "running 1h recent-window backfill so dashboards aren't blank"
+        )
+        return await run_recent_window_backfill(lookback_seconds=3600, step_seconds=30)
+
     if await rum_events_is_empty(pool):
         logger.info("telemetry.backfill: metrics present but rum empty — RUM-only backfill")
         return await run_rum_only_backfill()
-    logger.info("telemetry.backfill: skipped (metric_points + rum_events have data)")
+
+    span_count = await recent_spans_count(pool, lookback_seconds=900)
+    if span_count < 30:
+        logger.info(
+            "telemetry.backfill: only %d spans in last 15m — running quick "
+            "recent-window backfill to populate APM dashboards",
+            span_count,
+        )
+        return await run_recent_window_backfill(lookback_seconds=3600, step_seconds=30)
+
+    logger.info("telemetry.backfill: skipped (DB has recent data)")
     return None
 
 

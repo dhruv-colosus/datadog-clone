@@ -114,7 +114,7 @@ export function TracesQueryBar() {
       </div>
 
       <div className="flex items-center gap-2">
-        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#f3e8fd] text-[12.5px] font-semibold text-[#7c3aed]">
+        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#f3e8fd] text-[12.5px] font-semibold text-[#1a73e8]">
           a
         </span>
 
@@ -160,7 +160,7 @@ export function TracesQueryBar() {
             <button
               type="button"
               aria-label="Natural language search"
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#7c3aed] text-white hover:bg-[#6d28d9]"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#1a73e8] text-white hover:bg-[#6d28d9]"
             >
               <Sparkle size={14} weight="fill" />
             </button>
@@ -243,18 +243,18 @@ function TokenChip({
       className="inline-flex h-6 items-center overflow-hidden rounded-md border border-[#e8d5fb] bg-[#faf5ff] text-[12.5px]"
       onClick={(e) => e.stopPropagation()}
     >
-      <span className="bg-[#f3e8fd] px-1.5 py-0.5 font-medium text-[#7c3aed]">
+      <span className="bg-[#f3e8fd] px-1.5 py-0.5 font-medium text-[#1a73e8]">
         {token.key}
       </span>
-      <span className="px-0.5 text-[#7c3aed]">:</span>
-      <span className="bg-[#faf5ff] px-1.5 py-0.5 text-[#7c3aed]">
+      <span className="px-0.5 text-[#1a73e8]">:</span>
+      <span className="bg-[#faf5ff] px-1.5 py-0.5 text-[#1a73e8]">
         {token.value}
       </span>
       <button
         type="button"
         onClick={onRemove}
         aria-label={`Remove ${token.key}:${token.value}`}
-        className="flex h-6 w-5 items-center justify-center text-[#7c3aed] hover:bg-[#f3e8fd]"
+        className="flex h-6 w-5 items-center justify-center text-[#1a73e8] hover:bg-[#f3e8fd]"
       >
         <X size={10} weight="bold" />
       </button>

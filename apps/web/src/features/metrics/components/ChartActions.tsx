@@ -28,6 +28,10 @@ export function ChartActions() {
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
+        <Button variant="primary" onClick={() => setDialogOpen(true)}>
+          <ChartLineUp size={14} />
+          <span>Save to Dashboard</span>
+        </Button>
         <Button>
           <SquareSplitHorizontal size={14} />
           <span>Split Graph</span>
@@ -35,7 +39,7 @@ export function ChartActions() {
         <Button>
           <Export size={14} />
           <span>Open in Sheets</span>
-          <span className="rounded-md bg-[#f3e8ff] px-1.5 py-px text-[10px] font-semibold text-[#7c3aed]">
+          <span className="rounded-md bg-[#e8f0fe] px-1.5 py-px text-[10px] font-semibold text-[#1a73e8]">
             NEW
           </span>
         </Button>

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { ArrowsOut, Gear, Minus, Plus } from "@phosphor-icons/react";
-import { HOSTS } from "../mock-data";
+import { useHosts } from "../hooks";
 import type { Host } from "../types";
 import { HexCluster } from "./HexCluster";
 import { HostMapToolbar } from "./HostMapToolbar";
@@ -19,33 +19,35 @@ type Group = {
 
 export function HostMap() {
   const [zoomIdx, setZoomIdx] = useState(0);
+  const { hosts } = useHosts();
 
   const groups = useMemo<Group[]>(() => {
     const map = new Map<string, Host[]>();
-    HOSTS.forEach((h) => {
+    hosts.forEach((h) => {
       const key = h.availabilityZone ?? "no availability-zone";
       const arr = map.get(key) ?? [];
       arr.push(h);
       map.set(key, arr);
     });
-    const out: Group[] = Array.from(map.entries()).map(([key, hosts]) => ({
+    const out: Group[] = Array.from(map.entries()).map(([key, hs]) => ({
       key,
       label: key,
-      hosts,
+      hosts: hs,
     }));
     out.sort((a, b) => b.hosts.length - a.hosts.length);
     return out;
-  }, []);
+  }, [hosts]);
 
   const fillRange = useMemo(() => {
-    const cpus = HOSTS.map((h) => h.cpuPercent);
+    if (hosts.length === 0) return { min: 0, max: 0 };
+    const cpus = hosts.map((h) => h.cpuPercent);
     return {
       min: Math.min(...cpus),
       max: Math.max(...cpus),
     };
-  }, []);
+  }, [hosts]);
 
-  const onlyOne = HOSTS.length === 1;
+  const onlyOne = hosts.length === 1;
 
   return (
     <div className="flex h-full w-full flex-col bg-white text-[#202124]">
@@ -53,7 +55,7 @@ export function HostMap() {
       <HostMapToolbar fillRange={fillRange} />
       <div className="relative flex-1 overflow-hidden bg-[#f8f9fa]">
         {onlyOne ? (
-          <SingleHostView host={HOSTS[0]} />
+          <SingleHostView host={hosts[0]} />
         ) : (
           <MultiClusterView groups={groups} hexSize={ZOOM_STEPS[zoomIdx]} />
         )}

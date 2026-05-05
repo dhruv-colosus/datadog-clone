@@ -35,7 +35,7 @@ export function MetricCombobox({ value, onChange }: Props) {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search metrics"
-              className="w-full rounded-md border border-[#bdc1c6] px-2 py-1 text-[13px] outline-none focus:border-[#7c3aed]"
+              className="w-full rounded-md border border-[#bdc1c6] px-2 py-1 text-[13px] outline-none focus:border-[#1a73e8]"
             />
           </div>
           <div className="overflow-y-auto py-1" style={{ maxHeight: 280 }}>

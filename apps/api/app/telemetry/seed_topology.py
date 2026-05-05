@@ -221,13 +221,16 @@ async def reseed_topology() -> dict[str, int]:
 async def seed_if_empty() -> dict[str, int] | None:
     """Run once on lifespan startup if the services table is empty.
 
-    Also tops up the `rum_applications` table when older deployments seeded
-    topology but predate the RUM migration.
+    Also tops up the `rum_applications`, `topology_processes`, and
+    `topology_containers` tables when older deployments seeded topology before
+    those rows were part of the seed.
     """
     pool = await get_pool()
     async with pool.acquire() as conn:
         topology_row = await conn.fetchrow("SELECT 1 FROM topology_services LIMIT 1")
         rum_row = await conn.fetchrow("SELECT 1 FROM rum_applications LIMIT 1")
+        process_row = await conn.fetchrow("SELECT 1 FROM topology_processes LIMIT 1")
+        container_row = await conn.fetchrow("SELECT 1 FROM topology_containers LIMIT 1")
         if topology_row is None:
             async with conn.transaction():
                 await _seed(conn)
@@ -249,4 +252,46 @@ async def seed_if_empty() -> dict[str, int] | None:
                 "telemetry.seed_topology: backfilled %d rum_applications row(s)",
                 len(RUM_APPLICATIONS),
             )
+        if process_row is None:
+            process_rows = [
+                (
+                    p.host_id, p.pid, p.command, p.parent_pid,
+                    p.started_seconds_ago, p.cpu_percent, p.rss_mib,
+                )
+                for h in HOSTS
+                for p in processes_for_host(h)
+            ]
+            if process_rows:
+                await conn.executemany(
+                    """
+                    INSERT INTO topology_processes
+                        (host_id, pid, command, parent_pid, started_seconds_ago,
+                         cpu_percent, rss_mib)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    """,
+                    process_rows,
+                )
+                logger.info(
+                    "telemetry.seed_topology: backfilled %d topology_processes row(s)",
+                    len(process_rows),
+                )
+        if container_row is None:
+            container_rows = [
+                (c.host_id, c.name, c.image, c.runtime, c.started_seconds_ago)
+                for h in HOSTS
+                for c in containers_for_host(h)
+            ]
+            if container_rows:
+                await conn.executemany(
+                    """
+                    INSERT INTO topology_containers
+                        (host_id, name, image, runtime, started_seconds_ago)
+                    VALUES ($1, $2, $3, $4, $5)
+                    """,
+                    container_rows,
+                )
+                logger.info(
+                    "telemetry.seed_topology: backfilled %d topology_containers row(s)",
+                    len(container_rows),
+                )
         return None

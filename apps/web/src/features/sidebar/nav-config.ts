@@ -61,15 +61,38 @@ const VALID_ROUTES = new Set<string>([
   "/logs",
   "/metric/explore",
   "/metrics",
-  "/monitors/create",
-  "/monitors/manage",
+  "/monitor",
+  "/monitor/create",
+  "/monitor/manage",
+  "/notebook",
   "/notebook/list",
   "/rum",
   "/rum/explorer",
   "/rum/session-replay",
   "/rum/summary",
+  "/security",
+  "/slo",
   "/slo/create",
   "/slo/manage",
+  "/synthetics",
+  "/synthetics/tests",
+  "/synthetics/tests/new",
+  "/synthetics/tests/new/scratch",
+  "/monitor/configure",
+  "/watchdog",
+  "/incidents",
+  "/security/signals",
+  "/security/rules",
+  "/security/rules/new",
+  "/ci/pipelines",
+  "/ci/pipeline-executions",
+  "/ci/test-services",
+  "/cost",
+  "/cost/explorer",
+  "/logs/pipelines",
+  "/logs/configuration/facets",
+  "/security/data-security",
+  "/security/data-security/findings",
 ]);
 
 export function isRouteAvailable(href: string | undefined): boolean {
@@ -156,14 +179,14 @@ export const navSections: NavSection[] = [
     },
     {
       label: "Monitoring",
-      href: "/monitors/manage",
+      href: "/monitor/manage",
       icon: Gauge,
       flyout: [
         {
           heading: "Monitors",
           primary: [
-            { label: "Monitor List", href: "/monitors/manage" },
-            { label: "New Monitor", href: "/monitors/create", isCreate: true },
+            { label: "Monitor List", href: "/monitor/manage" },
+            { label: "New Monitor", href: "/monitor/create", isCreate: true },
             { label: "Triggered" },
             { label: "Downtimes" },
             { label: "Quality" },
@@ -183,7 +206,15 @@ export const navSections: NavSection[] = [
           primary: [{ label: "Triage Inbox" }, { label: "All Events" }],
           secondary: [{ label: "Settings" }],
         },
-        { heading: "Watchdog" },
+        {
+          heading: "Watchdog",
+          href: "/watchdog",
+          primary: [
+            { label: "Stories", href: "/watchdog" },
+            { label: "Anomaly Monitor", href: "/monitor/configure?type=anomaly", isCreate: true },
+            { label: "Forecast Monitor", href: "/monitor/configure?type=forecast", isCreate: true },
+          ],
+        },
         { heading: "External Provider Status", badge: "NEW" },
       ],
     },
@@ -203,9 +234,10 @@ export const navSections: NavSection[] = [
         },
         {
           heading: "Incident Management",
+          href: "/incidents",
           primary: [
-            { label: "Incident List" },
-            { label: "Declare Incident", isCreate: true },
+            { label: "Incident List", href: "/incidents" },
+            { label: "Declare Incident", href: "/incidents", isCreate: true },
           ],
           secondary: [{ label: "Settings" }],
         },
@@ -302,8 +334,22 @@ export const navSections: NavSection[] = [
     },
     {
       label: "Cloud Cost",
-      href: "/cloud-cost",
+      href: "/cost/explorer",
       icon: Cloud,
+      flyout: [
+        {
+          heading: "Cloud Cost Management",
+          href: "/cost/explorer",
+          primary: [
+            { label: "Cost Explorer", href: "/cost/explorer" },
+            { label: "Container Cost Allocation", href: "/cost/explorer" },
+          ],
+          secondary: [{ label: "Settings" }],
+        },
+        { heading: "Datadog Costs" },
+        { heading: "SaaS Costs" },
+        { heading: "Custom Costs" },
+      ],
     },
     {
       label: "APM",
@@ -359,9 +405,10 @@ export const navSections: NavSection[] = [
       flyout: [
         {
           heading: "Synthetic Monitoring & Testing",
+          href: "/synthetics/tests",
           primary: [
-            { label: "Tests" },
-            { label: "New Test", isCreate: true },
+            { label: "Tests", href: "/synthetics/tests" },
+            { label: "New Test", href: "/synthetics/tests/new", isCreate: true },
             { label: "Test Suites", badge: "NEW" },
             { label: "New Test Suite", badge: "NEW", isCreate: true },
             { label: "Results Explorer" },
@@ -398,10 +445,19 @@ export const navSections: NavSection[] = [
     },
     {
       label: "Software Delivery",
-      href: "/software-delivery",
+      href: "/ci/pipeline-executions",
       icon: GitBranch,
       flyout: [
-        { heading: "Intro to CI Visibility" },
+        {
+          heading: "CI Visibility",
+          href: "/ci/pipeline-executions",
+          primary: [
+            { label: "Pipeline Executions", href: "/ci/pipeline-executions" },
+            { label: "Pipelines", href: "/ci/pipelines" },
+            { label: "Test Impact Analysis", href: "/ci/test-services" },
+          ],
+          secondary: [{ label: "Settings" }],
+        },
         {
           heading: "Feature Flags",
           badge: "NEW",
@@ -425,12 +481,27 @@ export const navSections: NavSection[] = [
       icon: Shield,
       flyout: [
         { heading: "Security", primary: [{ label: "Research Feed" }] },
-        { heading: "Cloud SIEM" },
+        {
+          heading: "Cloud SIEM",
+          href: "/security/signals",
+          primary: [
+            { label: "Signals", href: "/security/signals" },
+            { label: "Detection Rules", href: "/security/rules" },
+            { label: "New Detection Rule", href: "/security/rules/new", isCreate: true },
+          ],
+        },
         { heading: "Code Security" },
         { heading: "Cloud Security" },
         { heading: "App & API Protection" },
         { heading: "Workload Protection" },
-        { heading: "Sensitive Data Scanner" },
+        {
+          heading: "Sensitive Data Scanner",
+          href: "/security/data-security",
+          primary: [
+            { label: "Scrubber Rules", href: "/security/data-security" },
+            { label: "Findings", href: "/security/data-security/findings" },
+          ],
+        },
         { heading: "Findings" },
         { heading: "Settings" },
       ],
@@ -517,8 +588,10 @@ export const navSections: NavSection[] = [
         },
         {
           heading: "Log Configuration",
+          href: "/logs/pipelines",
           primary: [
-            { label: "Pipelines" },
+            { label: "Pipelines", href: "/logs/pipelines" },
+            { label: "Facets", href: "/logs/configuration/facets" },
             { label: "Indexes" },
             { label: "Flex Logs Controls" },
             { label: "Add a Log Source" },
@@ -528,7 +601,14 @@ export const navSections: NavSection[] = [
           ],
         },
         { heading: "Observability Pipelines", badge: "NEW" },
-        { heading: "Sensitive Data Scanner" },
+        {
+          heading: "Sensitive Data Scanner",
+          href: "/security/data-security",
+          primary: [
+            { label: "Scrubber Rules", href: "/security/data-security" },
+            { label: "Findings", href: "/security/data-security/findings" },
+          ],
+        },
         { heading: "Starred Saved Views", emptyState: "No starred saved views" },
       ],
     },

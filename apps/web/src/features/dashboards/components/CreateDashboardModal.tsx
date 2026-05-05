@@ -4,6 +4,7 @@ import { CaretDown, ClockCounterClockwise, DesktopTower, X } from "@phosphor-ico
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { createDashboard, responseToDashboard } from "../api";
 import { suggestDefaultName, useDashboardsStore } from "../store";
 import type { DashboardKind } from "../types";
 
@@ -14,14 +15,18 @@ type Props = {
 
 export function CreateDashboardModal({ open, onClose }: Props) {
   const router = useRouter();
-  const create = useDashboardsStore((s) => s.create);
+  const upsertDashboard = useDashboardsStore((s) => s.upsertDashboard);
   const [name, setName] = useState("");
   const [placeholder, setPlaceholder] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
       setName("");
       setPlaceholder(suggestDefaultName());
+      setSubmitting(false);
+      setError(null);
     }
   }, [open]);
 
@@ -36,10 +41,20 @@ export function CreateDashboardModal({ open, onClose }: Props) {
 
   if (!open) return null;
 
-  const submit = (kind: DashboardKind) => {
-    const dashboard = create({ name: name || placeholder, kind });
-    onClose();
-    router.push(`/dashboard/${dashboard.id}`);
+  const submit = async (kind: DashboardKind) => {
+    if (submitting) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const finalName = name || placeholder;
+      const created = await createDashboard({ name: finalName, kind });
+      upsertDashboard(responseToDashboard(created));
+      onClose();
+      router.push(`/dashboard/${created.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create dashboard");
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -86,12 +101,18 @@ export function CreateDashboardModal({ open, onClose }: Props) {
           </Field>
         </div>
 
+        {error && (
+          <div className="mx-6 mb-3 rounded-md border border-[#fecaca] bg-[#fef2f2] px-3 py-2 text-[12px] text-[#991b1b]">
+            {error}
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-5 px-6 pb-6">
           <DashboardOption
             primary
             title="Snap widgets into place on a grid"
             preview={<GridPreview />}
-            actionLabel="New Dashboard"
+            actionLabel={submitting ? "Creating…" : "New Dashboard"}
             onSelect={() => submit("dashboard")}
           />
           <div className="flex flex-col gap-3">

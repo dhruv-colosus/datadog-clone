@@ -129,7 +129,7 @@ function Table({
               className="border-b border-[#f1f3f4] text-[#202124] hover:bg-[#f8f9fa]"
             >
               {showAliasColumn && (
-                <td className="px-3 py-1.5 font-medium uppercase text-[#7c3aed]">
+                <td className="px-3 py-1.5 font-medium uppercase text-[#1a73e8]">
                   {row.alias}
                 </td>
               )}

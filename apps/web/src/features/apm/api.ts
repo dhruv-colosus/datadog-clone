@@ -18,6 +18,12 @@ import type {
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+// Base for `new URL(endpoint, URL_BASE)`. Required when API_URL is a relative
+// path (e.g. "/api" in prod builds) — the URL constructor throws on relative
+// inputs without a base. Ignored when the endpoint is already absolute.
+const URL_BASE =
+  typeof window !== "undefined" ? window.location.origin : "http://localhost";
+
 export const apmEndpoints = {
   services: `${API_URL}/apm/services`,
   service: (name: string) => `${API_URL}/apm/services/${name}`,
@@ -58,7 +64,7 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
 }
 
 export async function fetchApmServices(env: string): Promise<ApmService[]> {
-  const url = new URL(apmEndpoints.services);
+  const url = new URL(apmEndpoints.services, URL_BASE);
   if (env) url.searchParams.set("env", env);
   return getJson<ApmService[]>(url.toString());
 }
@@ -88,7 +94,7 @@ export async function fetchApmServiceSummarySeries(
   serviceId: string,
   range: ApmTimeRange,
 ): Promise<ApmServiceSeries[]> {
-  const url = new URL(apmEndpoints.serviceSeries(serviceId));
+  const url = new URL(apmEndpoints.serviceSeries(serviceId), URL_BASE);
   url.searchParams.set("fromMs", String(range.fromMs));
   url.searchParams.set("toMs", String(range.toMs));
   const res = await getJson<{
@@ -102,7 +108,7 @@ export async function fetchApmServiceResourceSeries(
   serviceId: string,
   range: ApmTimeRange,
 ): Promise<ApmServiceSeries[]> {
-  const url = new URL(apmEndpoints.resourcesSeries(serviceId));
+  const url = new URL(apmEndpoints.resourcesSeries(serviceId), URL_BASE);
   url.searchParams.set("fromMs", String(range.fromMs));
   url.searchParams.set("toMs", String(range.toMs));
   return getJson<ApmServiceSeries[]>(url.toString());
@@ -116,7 +122,7 @@ export async function fetchApmServiceMap(
   env?: string,
   lookbackSeconds = 600,
 ): Promise<ApmServiceMap> {
-  const url = new URL(apmEndpoints.serviceMap);
+  const url = new URL(apmEndpoints.serviceMap, URL_BASE);
   if (env) url.searchParams.set("env", env);
   url.searchParams.set("lookbackSeconds", String(lookbackSeconds));
   return getJson<ApmServiceMap>(url.toString());
@@ -167,7 +173,7 @@ export async function fetchApmTrace(traceId: string): Promise<ApmTraceDetail> {
 export async function fetchApmRecommendations(
   type: "all" | "performance" | "reliability" | "cost",
 ): Promise<ApmRecommendation[]> {
-  const url = new URL(apmEndpoints.recommendations);
+  const url = new URL(apmEndpoints.recommendations, URL_BASE);
   if (type !== "all") url.searchParams.set("type", type);
   return getJson<ApmRecommendation[]>(url.toString());
 }
@@ -175,7 +181,7 @@ export async function fetchApmRecommendations(
 export async function fetchApmWatchdog(
   lookbackHours = 48,
 ): Promise<ApmWatchdogAnomaly[]> {
-  const url = new URL(apmEndpoints.watchdog);
+  const url = new URL(apmEndpoints.watchdog, URL_BASE);
   url.searchParams.set("lookbackHours", String(lookbackHours));
   return getJson<ApmWatchdogAnomaly[]>(url.toString());
 }
@@ -183,7 +189,7 @@ export async function fetchApmWatchdog(
 export async function fetchApmIssues(
   lookbackSeconds = 3600,
 ): Promise<ApmIssue[]> {
-  const url = new URL(apmEndpoints.issues);
+  const url = new URL(apmEndpoints.issues, URL_BASE);
   url.searchParams.set("lookbackSeconds", String(lookbackSeconds));
   return getJson<ApmIssue[]>(url.toString());
 }

@@ -18,6 +18,12 @@ import type {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+// Required when API_URL is a relative path (e.g. "/api" in prod builds): the
+// URL constructor throws on relative inputs without a base. Ignored when the
+// endpoint is absolute.
+const URL_BASE =
+  typeof window !== "undefined" ? window.location.origin : "http://localhost";
+
 export const rumEndpoints = {
   applications: `${API_URL}/rum/applications`,
   application: (id: string) => `${API_URL}/rum/applications/${id}`,
@@ -62,7 +68,7 @@ export async function fetchSummary(
   id: string,
   range?: RumTimeRange,
 ): Promise<RumSummary> {
-  return getJson<RumSummary>(withRange(new URL(rumEndpoints.summary(id)), range).toString());
+  return getJson<RumSummary>(withRange(new URL(rumEndpoints.summary(id), URL_BASE), range).toString());
 }
 
 export async function fetchSeries(
@@ -70,7 +76,7 @@ export async function fetchSeries(
   metric: RumPerfMetric,
   range?: RumTimeRange,
 ): Promise<RumSeries | RumViewsSeries> {
-  const url = withRange(new URL(rumEndpoints.series(id)), range);
+  const url = withRange(new URL(rumEndpoints.series(id), URL_BASE), range);
   url.searchParams.set("metric", metric);
   return getJson<RumSeries | RumViewsSeries>(url.toString());
 }
@@ -79,7 +85,7 @@ export async function fetchVitals(
   id: string,
   range?: RumTimeRange,
 ): Promise<RumVitals> {
-  return getJson<RumVitals>(withRange(new URL(rumEndpoints.vitals(id)), range).toString());
+  return getJson<RumVitals>(withRange(new URL(rumEndpoints.vitals(id), URL_BASE), range).toString());
 }
 
 export async function fetchErrorRate(
@@ -87,7 +93,7 @@ export async function fetchErrorRate(
   range?: RumTimeRange,
 ): Promise<RumErrorRate> {
   return getJson<RumErrorRate>(
-    withRange(new URL(rumEndpoints.errorRate(id)), range).toString(),
+    withRange(new URL(rumEndpoints.errorRate(id), URL_BASE), range).toString(),
   );
 }
 
@@ -100,7 +106,7 @@ export async function fetchResourcePerformance(
   range?: RumTimeRange,
   limit = 10,
 ): Promise<RumResourcePerf[]> {
-  const url = withRange(new URL(rumEndpoints.resources(id)), range);
+  const url = withRange(new URL(rumEndpoints.resources(id), URL_BASE), range);
   url.searchParams.set("limit", String(limit));
   return getJson<RumResourcePerf[]>(url.toString());
 }
@@ -110,7 +116,7 @@ export async function fetchTopViews(
   range?: RumTimeRange,
   limit = 10,
 ): Promise<RumTopView[]> {
-  const url = withRange(new URL(rumEndpoints.topViews(id)), range);
+  const url = withRange(new URL(rumEndpoints.topViews(id), URL_BASE), range);
   url.searchParams.set("limit", String(limit));
   return getJson<RumTopView[]>(url.toString());
 }
@@ -133,7 +139,7 @@ export type SessionListFilters = {
 export async function fetchSessions(
   filters: SessionListFilters = {},
 ): Promise<RumSessionListItem[]> {
-  const url = withRange(new URL(rumEndpoints.sessions), filters.range);
+  const url = withRange(new URL(rumEndpoints.sessions, URL_BASE), filters.range);
   if (filters.appId) url.searchParams.set("appId", filters.appId);
   if (filters.limit != null) url.searchParams.set("limit", String(filters.limit));
   if (filters.minViews != null)
@@ -162,7 +168,7 @@ export async function fetchErrorGroups(
   appId?: string,
   range?: RumTimeRange,
 ): Promise<RumErrorGroup[]> {
-  const url = withRange(new URL(rumEndpoints.errors), range);
+  const url = withRange(new URL(rumEndpoints.errors, URL_BASE), range);
   if (appId) url.searchParams.set("appId", appId);
   return getJson<RumErrorGroup[]>(url.toString());
 }
@@ -172,7 +178,7 @@ export async function fetchViews(
   range?: RumTimeRange,
   limit = 200,
 ): Promise<RumViewListItem[]> {
-  const url = withRange(new URL(rumEndpoints.views), range);
+  const url = withRange(new URL(rumEndpoints.views, URL_BASE), range);
   if (appId) url.searchParams.set("appId", appId);
   url.searchParams.set("limit", String(limit));
   return getJson<RumViewListItem[]>(url.toString());

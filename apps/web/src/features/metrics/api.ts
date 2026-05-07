@@ -12,6 +12,12 @@ import type {
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+// Required when API_URL is a relative path (e.g. "/api" in prod builds): the
+// URL constructor throws on relative inputs without a base. Ignored when the
+// endpoint is absolute.
+const URL_BASE =
+  typeof window !== "undefined" ? window.location.origin : "http://localhost";
+
 export const metricsEndpoints = {
   metricNames: `${API_URL}/metrics/names`,
   tagKeys: `${API_URL}/metrics/tag-keys`,
@@ -36,14 +42,14 @@ async function jsonOrThrow<T>(res: Response, label: string): Promise<T> {
 }
 
 export async function fetchMetricNames(prefix?: string): Promise<string[]> {
-  const url = new URL(metricsEndpoints.metricNames);
+  const url = new URL(metricsEndpoints.metricNames, URL_BASE);
   if (prefix) url.searchParams.set("prefix", prefix);
   const res = await fetch(url.toString(), { credentials: "include" });
   return jsonOrThrow<string[]>(res, "GET /metrics/names");
 }
 
 export async function fetchTagKeys(metricName: string): Promise<string[]> {
-  const url = new URL(metricsEndpoints.tagKeys);
+  const url = new URL(metricsEndpoints.tagKeys, URL_BASE);
   if (metricName) url.searchParams.set("metric", metricName);
   const res = await fetch(url.toString(), { credentials: "include" });
   return jsonOrThrow<string[]>(res, "GET /metrics/tag-keys");
@@ -53,7 +59,7 @@ export async function fetchTagValues(
   metricName: string,
   tag: string,
 ): Promise<string[]> {
-  const url = new URL(metricsEndpoints.tagValues);
+  const url = new URL(metricsEndpoints.tagValues, URL_BASE);
   url.searchParams.set("tag", tag);
   if (metricName) url.searchParams.set("metric", metricName);
   const res = await fetch(url.toString(), { credentials: "include" });

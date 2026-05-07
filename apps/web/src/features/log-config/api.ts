@@ -22,6 +22,7 @@ export const logConfigEndpoints = {
   scrubberRule: (id: string) => `${API_URL}/security/data-security/rules/${id}`,
   scrubberFindings: `${API_URL}/security/data-security/findings`,
   scrubberLibrary: `${API_URL}/security/data-security/library`,
+  settings: `${API_URL}/logs/config/settings`,
 };
 
 async function jsonOrThrow<T>(res: Response, label: string): Promise<T> {
@@ -187,6 +188,35 @@ export async function listScrubberFindings(
     { credentials: "include" },
   );
   return jsonOrThrow<ScrubberFinding[]>(res, "GET /security/data-security/findings");
+}
+
+export type LogConfigSettings = {
+  anomalyDetectionEnabled: boolean;
+  errorTrackingEnabled: boolean;
+  preprocessingJsonEnabled: boolean;
+};
+
+export async function getLogSettings(): Promise<LogConfigSettings> {
+  const res = await fetch(logConfigEndpoints.settings, {
+    credentials: "include",
+  });
+  return jsonOrThrow<LogConfigSettings>(res, "GET /logs/config/settings");
+}
+
+export async function patchLogSettings(
+  payload: Partial<{
+    anomaly_detection_enabled: boolean;
+    error_tracking_enabled: boolean;
+    preprocessing_json_enabled: boolean;
+  }>,
+): Promise<LogConfigSettings> {
+  const res = await fetch(logConfigEndpoints.settings, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return jsonOrThrow<LogConfigSettings>(res, "PATCH /logs/config/settings");
 }
 
 export async function getLibraryPatterns(): Promise<{ patterns: LibraryPattern[] }> {

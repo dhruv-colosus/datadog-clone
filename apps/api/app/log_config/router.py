@@ -23,6 +23,76 @@ from app.log_config.scrubber import LIBRARY_PATTERNS, scrub_log
 pipelines_router = APIRouter(prefix="/logs/pipelines", tags=["log-pipelines"])
 facets_router = APIRouter(prefix="/logs/facets", tags=["log-facets"])
 scrubber_router = APIRouter(prefix="/security/data-security", tags=["data-security"])
+settings_router = APIRouter(prefix="/logs/config", tags=["log-config-settings"])
+
+
+# ---------------- settings (singleton row) ----------------
+
+
+@settings_router.get("/settings")
+async def get_log_settings(
+    _user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    res = await db.execute(
+        text(
+            "SELECT anomaly_detection_enabled, error_tracking_enabled, "
+            "preprocessing_json_enabled, updated_at "
+            "FROM log_config_settings WHERE id = 1"
+        )
+    )
+    row = res.first()
+    if row is None:
+        await db.execute(text("INSERT INTO log_config_settings (id) VALUES (1)"))
+        await db.commit()
+        return {
+            "anomalyDetectionEnabled": True,
+            "errorTrackingEnabled": True,
+            "preprocessingJsonEnabled": True,
+        }
+    return {
+        "anomalyDetectionEnabled": row.anomaly_detection_enabled,
+        "errorTrackingEnabled": row.error_tracking_enabled,
+        "preprocessingJsonEnabled": row.preprocessing_json_enabled,
+        "updatedMs": int(row.updated_at.timestamp() * 1000),
+    }
+
+
+class LogSettingsPatch(BaseModel):
+    anomaly_detection_enabled: bool | None = None
+    error_tracking_enabled: bool | None = None
+    preprocessing_json_enabled: bool | None = None
+
+
+@settings_router.patch("/settings")
+async def patch_log_settings(
+    body: LogSettingsPatch,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    sets: list[str] = ["updated_at = NOW()"]
+    params: dict[str, Any] = {}
+    if body.anomaly_detection_enabled is not None:
+        sets.append("anomaly_detection_enabled = :anom")
+        params["anom"] = body.anomaly_detection_enabled
+    if body.error_tracking_enabled is not None:
+        sets.append("error_tracking_enabled = :err")
+        params["err"] = body.error_tracking_enabled
+    if body.preprocessing_json_enabled is not None:
+        sets.append("preprocessing_json_enabled = :pre")
+        params["pre"] = body.preprocessing_json_enabled
+    await db.execute(
+        text(
+            "INSERT INTO log_config_settings (id) VALUES (1) "
+            "ON CONFLICT (id) DO NOTHING"
+        )
+    )
+    await db.execute(
+        text(f"UPDATE log_config_settings SET {', '.join(sets)} WHERE id = 1"),
+        params,
+    )
+    await db.commit()
+    return await get_log_settings(user, db)
 
 
 # ---------------- pipelines ----------------

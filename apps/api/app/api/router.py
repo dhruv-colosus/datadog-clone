@@ -9,6 +9,7 @@ from app.log_config.router import (
     facets_router as log_facets_router,
     pipelines_router as log_pipelines_router,
     scrubber_router as scrubber_router,
+    settings_router as log_settings_router,
 )
 from app.dashboards.router import (
     public_router as dashboards_public_router,
@@ -52,3 +53,4 @@ api_router.include_router(cost_router)
 api_router.include_router(log_pipelines_router)
 api_router.include_router(log_facets_router)
 api_router.include_router(scrubber_router)
+api_router.include_router(log_settings_router)

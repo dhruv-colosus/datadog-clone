@@ -38,3 +38,30 @@ export type WatchdogStory = {
   endedMs: number | null;
   createdMs: number;
 };
+
+export type WatchdogSummary = {
+  byStatus: Record<WatchdogStatus, number>;
+  bySeverity: Record<WatchdogSeverity, number>;
+  byKind: Record<string, number>;
+  servicesImpacted: number;
+  last24h: number;
+  maxSigma: number | null;
+  latestStartedMs: number | null;
+};
+
+export type WatchdogTimelineEvent = {
+  id: string;
+  severity: WatchdogSeverity;
+  status: WatchdogStatus;
+  kind: WatchdogKind;
+  title: string;
+  startedMs: number;
+  sigmas: number | null;
+};
+
+export type WatchdogTimeline = {
+  windowMs: number;
+  startMs: number;
+  endMs: number;
+  services: { service: string; events: WatchdogTimelineEvent[] }[];
+};

@@ -1,10 +1,18 @@
-import type { WatchdogStatus, WatchdogStory } from "./types";
+import type {
+  WatchdogStatus,
+  WatchdogStory,
+  WatchdogSummary,
+  WatchdogTimeline,
+} from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 export const watchdogEndpoints = {
   list: `${API_URL}/watchdog/stories`,
   byId: (id: string) => `${API_URL}/watchdog/stories/${id}`,
+  summary: `${API_URL}/watchdog/summary`,
+  timeline: (hours: number) =>
+    `${API_URL}/watchdog/timeline?hours=${hours}`,
 };
 
 async function jsonOrThrow<T>(res: Response, label: string): Promise<T> {
@@ -52,6 +60,20 @@ export async function getStory(id: string): Promise<WatchdogStory> {
     credentials: "include",
   });
   return jsonOrThrow<WatchdogStory>(res, `GET /watchdog/stories/${id}`);
+}
+
+export async function getSummary(): Promise<WatchdogSummary> {
+  const res = await fetch(watchdogEndpoints.summary, {
+    credentials: "include",
+  });
+  return jsonOrThrow<WatchdogSummary>(res, "GET /watchdog/summary");
+}
+
+export async function getTimeline(hours = 24): Promise<WatchdogTimeline> {
+  const res = await fetch(watchdogEndpoints.timeline(hours), {
+    credentials: "include",
+  });
+  return jsonOrThrow<WatchdogTimeline>(res, "GET /watchdog/timeline");
 }
 
 export async function patchStory(

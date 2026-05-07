@@ -7,6 +7,8 @@ import {
 } from "@tanstack/react-query";
 import {
   getStory,
+  getSummary,
+  getTimeline,
   listStories,
   patchStory,
   type WatchdogFilters,
@@ -17,7 +19,25 @@ const KEYS = {
   list: (filters?: WatchdogFilters) =>
     ["watchdog", "stories", filters ?? {}] as const,
   byId: (id: string) => ["watchdog", "stories", id] as const,
+  summary: ["watchdog", "summary"] as const,
+  timeline: (hours: number) => ["watchdog", "timeline", hours] as const,
 };
+
+export function useWatchdogSummary() {
+  return useQuery({
+    queryKey: KEYS.summary,
+    queryFn: () => getSummary(),
+    refetchInterval: 30_000,
+  });
+}
+
+export function useWatchdogTimeline(hours = 24) {
+  return useQuery({
+    queryKey: KEYS.timeline(hours),
+    queryFn: () => getTimeline(hours),
+    refetchInterval: 30_000,
+  });
+}
 
 export function useWatchdogStories(filters?: WatchdogFilters) {
   return useQuery({

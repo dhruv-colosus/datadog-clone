@@ -16,6 +16,7 @@ Endpoint surface (P0 from the APM spec):
 
 from __future__ import annotations
 
+import datetime as dt
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -24,6 +25,7 @@ from pydantic import BaseModel, Field
 from app.auth.dependencies import get_current_user
 from app.auth.models import User
 from app.telemetry import queries
+from app.telemetry.generators.traces import mock_trace_for_id
 from app.telemetry.pool import get_pool
 from app.telemetry.topology import (
     DEPENDENCIES,
@@ -338,8 +340,15 @@ async def get_trace(
     _: User = Depends(get_current_user),
 ) -> dict[str, Any]:
     spans = await queries.apm_get_trace(trace_id)
+    is_mock = False
     if not spans:
-        raise HTTPException(status_code=404, detail="Trace not found")
+        # No real trace — serve one of 5 deterministic mock shapes so log →
+        # trace navigation never dead-ends (covers phantom IDs from older
+        # logs and aged-out traces alike). Picked deterministically from
+        # trace_id so the same ID always returns the same mock.
+        anchor = dt.datetime.now(dt.timezone.utc).timestamp()
+        spans = [_mock_span_to_dict(s) for s in mock_trace_for_id(trace_id, anchor)]
+        is_mock = True
     # Compute trace-level rollups so the flame-graph header can render
     # without the client recomputing.
     t_start = min(s["tsMs"] for s in spans)
@@ -354,6 +363,27 @@ async def get_trace(
         "spanCount": len(spans),
         "errorCount": sum(1 for s in spans if s["status"] == "error"),
         "services": services,
+        "isMock": is_mock,
+    }
+
+
+def _mock_span_to_dict(span: Any) -> dict[str, Any]:
+    """Match the shape `apm_get_trace` returns from the DB."""
+    return {
+        "tsMs": int(span.ts_seconds * 1000),
+        "traceId": span.trace_id,
+        "spanId": span.span_id,
+        "parentSpanId": span.parent_span_id,
+        "service": span.service,
+        "operation": span.operation,
+        "resource": span.resource,
+        "durationMs": span.duration_us / 1000.0,
+        "status": "error" if span.status == 1 else "ok",
+        "httpMethod": span.http_method,
+        "httpStatus": span.http_status,
+        "host": span.host,
+        "env": span.env,
+        "tags": dict(span.tags),
     }
 
 

@@ -99,6 +99,9 @@ export type ApmTraceDetail = {
   spanCount: number;
   errorCount: number;
   services: string[];
+  /** True when the API couldn't find the real trace and returned a synthetic
+   *  shape so log → trace navigation still resolves. */
+  isMock?: boolean;
 };
 
 export type ApmSpanStatus = "ok" | "error";

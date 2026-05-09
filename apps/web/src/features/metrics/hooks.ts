@@ -70,6 +70,26 @@ export function useMetricTagValues(metricName: string, tag: string) {
   });
 }
 
+// Variants without a metric scope — used by dashboard template variables,
+// which apply globally rather than to a specific metric. Hits the same
+// endpoints with no `metric` param.
+export function useAllTagKeys() {
+  return useQuery({
+    queryKey: metricKeys.tagKeys(""),
+    queryFn: () => fetchTagKeys(""),
+    staleTime: 60_000,
+  });
+}
+
+export function useAllTagValues(tag: string) {
+  return useQuery({
+    queryKey: metricKeys.tagValues("", tag),
+    queryFn: () => fetchTagValues("", tag),
+    enabled: Boolean(tag),
+    staleTime: 60_000,
+  });
+}
+
 export function useMetricSeries(query: MetricQuery, range: TimeRange) {
   return useQuery({
     queryKey: metricKeys.series(query, range),

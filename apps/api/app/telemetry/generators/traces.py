@@ -147,6 +147,38 @@ def _emit_span_tree(
     return [span] + children, total_duration_us
 
 
+def _trace_seeds_for_tick(
+    t_seconds: float, tick_duration_seconds: float,
+) -> Iterator[tuple[Operation, object, str]]:
+    """Yield (entry_op, trace_rng, trace_id) for every trace this tick will emit.
+
+    Single source of truth for trace IDs in a tick — both `iter_spans_for_tick`
+    and `trace_ids_for_tick` consume this so they can't drift out of sync.
+    """
+    rate_factor = get_settings().trace_rate_factor
+    duration_scale = max(0.1, tick_duration_seconds / 5.0)
+    for entry_op in entry_operations():
+        rate = _BASE_TRACES_PER_TICK.get(entry_op.service, 2.0) * rate_factor * duration_scale
+        rng = seeded_rng("trace_count", entry_op.service, int(t_seconds))
+        n_traces = _poisson(rng, rate)
+        for i in range(n_traces):
+            trace_rng = seeded_rng("trace", entry_op.service, int(t_seconds), i)
+            yield entry_op, trace_rng, _new_trace_id(trace_rng)
+
+
+def trace_ids_for_tick(
+    t_seconds: float, tick_duration_seconds: float = 5.0,
+) -> list[str]:
+    """Trace IDs `iter_spans_for_tick` will emit for this tick.
+
+    Exposed so the logs generator can stamp log lines with trace IDs that
+    actually land in the `spans` table — without this, log → trace
+    navigation always 404s because the two generators draw from independent
+    RNG streams.
+    """
+    return [tid for _, _, tid in _trace_seeds_for_tick(t_seconds, tick_duration_seconds)]
+
+
 def iter_spans_for_tick(
     t_seconds: float, tick_duration_seconds: float = 5.0,
 ) -> Iterator[Span]:
@@ -157,26 +189,84 @@ def iter_spans_for_tick(
     5s tick. Without this, calling the generator at a 60s cadence (the live
     runner) emits 12x less data than at the legacy 5s cadence.
     """
-    rate_factor = get_settings().trace_rate_factor
-    duration_scale = max(0.1, tick_duration_seconds / 5.0)
-    for entry_op in entry_operations():
-        rate = _BASE_TRACES_PER_TICK.get(entry_op.service, 2.0) * rate_factor * duration_scale
-        rng = seeded_rng("trace_count", entry_op.service, int(t_seconds))
-        n_traces = _poisson(rng, rate)
-        for i in range(n_traces):
-            trace_rng = seeded_rng("trace", entry_op.service, int(t_seconds), i)
-            trace_id = _new_trace_id(trace_rng)
-            start_offset = trace_rng.random() * tick_duration_seconds
-            spans, _ = _emit_span_tree(
-                rng=trace_rng,
-                op=entry_op,
-                trace_id=trace_id,
-                parent_span_id=None,
-                start_seconds=t_seconds + start_offset,
-                parent_errored=False,
-            )
-            for s in spans:
-                yield s
+    for entry_op, trace_rng, trace_id in _trace_seeds_for_tick(
+        t_seconds, tick_duration_seconds,
+    ):
+        start_offset = trace_rng.random() * tick_duration_seconds
+        spans, _ = _emit_span_tree(
+            rng=trace_rng,
+            op=entry_op,
+            trace_id=trace_id,
+            parent_span_id=None,
+            start_seconds=t_seconds + start_offset,
+            parent_errored=False,
+        )
+        for s in spans:
+            yield s
+
+
+# ---------------------------------------------------------------------------
+# Mock-trace fallback: when a real trace can't be loaded (e.g. the log line
+# was stamped with a phantom trace_id by a pre-fix generator, or the trace
+# aged out of retention), the API serves one of these synthetic shapes so
+# log → trace navigation never dead-ends. Templates are built once with a
+# t=0 anchor and re-anchored to "now" at fetch time.
+# ---------------------------------------------------------------------------
+_MOCK_TRACE_COUNT = 5
+
+
+def _build_mock_template(seed_ix: int) -> list[Span]:
+    """Build one mock trace shape with timestamps relative to 0."""
+    rng = seeded_rng("mock_trace", seed_ix)
+    entries = list(entry_operations())
+    entry_op = entries[seed_ix % len(entries)]
+    spans, _ = _emit_span_tree(
+        rng=rng,
+        op=entry_op,
+        trace_id="__MOCK__",
+        parent_span_id=None,
+        start_seconds=0.0,
+        parent_errored=False,
+    )
+    return spans
+
+
+_MOCK_TEMPLATES: list[list[Span]] = [
+    _build_mock_template(i) for i in range(_MOCK_TRACE_COUNT)
+]
+
+
+def mock_trace_for_id(trace_id: str, anchor_seconds: float) -> list[Span]:
+    """Return one of the 5 mock trace shapes, anchored at `anchor_seconds`
+    and stamped with `trace_id`. Picks deterministically from the trace_id
+    so the same orphaned ID always renders the same mock shape.
+    """
+    if not trace_id:
+        idx = 0
+    else:
+        idx = int(trace_id, 16) % _MOCK_TRACE_COUNT if all(
+            c in "0123456789abcdefABCDEF" for c in trace_id
+        ) else hash(trace_id) % _MOCK_TRACE_COUNT
+    template = _MOCK_TEMPLATES[idx]
+    return [
+        Span(
+            ts_seconds=anchor_seconds + s.ts_seconds,
+            trace_id=trace_id,
+            span_id=s.span_id,
+            parent_span_id=s.parent_span_id,
+            service=s.service,
+            operation=s.operation,
+            resource=s.resource,
+            duration_us=s.duration_us,
+            status=s.status,
+            http_method=s.http_method,
+            http_status=s.http_status,
+            host=s.host,
+            env=s.env,
+            tags=s.tags,
+        )
+        for s in template
+    ]
 
 
 def _poisson(rng, lam: float) -> int:

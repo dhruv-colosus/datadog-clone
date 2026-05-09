@@ -1,12 +1,10 @@
-import {
-  MOCK_DASHBOARDS,
-} from "./mock-data";
 import type {
   Dashboard,
   MetricQuery,
   SavedWidget,
   Series,
   TimeRange,
+  VisualizationType,
 } from "./types";
 
 const API_URL =
@@ -24,7 +22,8 @@ export const metricsEndpoints = {
   tagValues: `${API_URL}/metrics/tag-values`,
   series: `${API_URL}/metrics/series`,
   dashboards: `${API_URL}/dashboards`,
-  saveWidget: `${API_URL}/dashboards/widgets`,
+  appendWidget: (dashboardId: string) =>
+    `${API_URL}/dashboards/${dashboardId}/widgets`,
 };
 
 async function jsonOrThrow<T>(res: Response, label: string): Promise<T> {
@@ -87,17 +86,76 @@ export async function fetchMetricSeries(
 }
 
 export async function fetchDashboards(): Promise<Dashboard[]> {
-  // Dashboards listing for the metrics save-widget flow remains a thin local
-  // shim — the dedicated dashboards/api.ts covers the authoritative CRUD path.
-  return MOCK_DASHBOARDS;
+  const res = await fetch(metricsEndpoints.dashboards, {
+    credentials: "include",
+  });
+  const list = await jsonOrThrow<Array<{ id: string; name: string }>>(
+    res,
+    "GET /dashboards",
+  );
+  return list.map((d) => ({ id: d.id, name: d.name }));
+}
+
+type VisualizationMapping = {
+  widgetType:
+    | "timeseries"
+    | "heatmap"
+    | "top_list"
+    | "query_value"
+    | "pie-chart";
+  display?: "lines" | "bars" | "areas";
+};
+
+function mapVisualization(v: VisualizationType): VisualizationMapping {
+  switch (v) {
+    case "line":
+      return { widgetType: "timeseries", display: "lines" };
+    case "bar":
+      return { widgetType: "timeseries", display: "bars" };
+    case "area":
+      return { widgetType: "timeseries", display: "areas" };
+    case "heatmap":
+      return { widgetType: "heatmap" };
+    case "toplist":
+      return { widgetType: "top_list" };
+    case "query_value":
+      return { widgetType: "query_value" };
+  }
 }
 
 export async function saveWidgetToDashboard(
   widget: Omit<SavedWidget, "id" | "createdAt">,
 ): Promise<SavedWidget> {
-  return {
-    ...widget,
-    id: `w_${Math.random().toString(36).slice(2, 10)}`,
-    createdAt: Date.now(),
+  const widgetId = `w_${Math.random().toString(36).slice(2, 10)}`;
+  const createdAt = Date.now();
+  const { widgetType, display } = mapVisualization(widget.visualization);
+
+  const payload = {
+    id: widgetId,
+    type: widgetType,
+    title: widget.title,
+    queries: widget.queries.map((q) => ({
+      id: q.id,
+      alias: q.alias,
+      metricName: q.metricName,
+      aggregator: q.aggregator,
+      filters: q.filters,
+      groupBy: q.groupBy,
+    })),
+    display,
+    createdAt,
   };
+
+  const res = await fetch(metricsEndpoints.appendWidget(widget.dashboardId), {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  await jsonOrThrow<unknown>(
+    res,
+    `POST /dashboards/${widget.dashboardId}/widgets`,
+  );
+
+  return { ...widget, id: widgetId, createdAt };
 }

@@ -28,6 +28,26 @@ class WidgetQueryModel(BaseModel):
     groupBy: list[str] = Field(default_factory=list)
 
 
+class TemplateVariableModel(BaseModel):
+    """Datadog-style template variable. See dashboards/types.ts for the
+    canonical front-end shape — these names are mirrored to keep the JSONB
+    payload lossless."""
+
+    id: str
+    name: str
+    tagKey: str
+    type: str = "filter"
+    defaultValue: str = "*"
+    availableValues: list[str] = Field(default_factory=list)
+    appliesTo: list[str] = Field(default_factory=list)
+
+
+class SavedViewModel(BaseModel):
+    id: str
+    name: str
+    selections: dict[str, str] = Field(default_factory=dict)
+
+
 class WidgetModel(BaseModel):
     id: str
     type: str
@@ -39,6 +59,8 @@ class WidgetModel(BaseModel):
     # axis, Change compareTo, Distribution buckets, etc) without coordinated
     # backend changes. Stored verbatim inside the dashboards.widgets JSONB.
     config: dict[str, Any] | None = None
+    width: int | None = None
+    height: int | None = None
     createdAt: int
 
 
@@ -61,7 +83,7 @@ class DashboardCreate(BaseModel):
     description: str | None = None
     widgets: list[WidgetModel] = Field(default_factory=list)
     layout: list[Any] = Field(default_factory=list)
-    template_vars: list[Any] = Field(default_factory=list)
+    template_vars: list[TemplateVariableModel] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
     share: ShareConfigModel | None = None
 
@@ -73,7 +95,7 @@ class DashboardPatch(BaseModel):
     description: str | None = None
     widgets: list[WidgetModel] | None = None
     layout: list[Any] | None = None
-    template_vars: list[Any] | None = None
+    template_vars: list[TemplateVariableModel] | None = None
     tags: list[str] | None = None
     share: ShareConfigModel | None = None
 

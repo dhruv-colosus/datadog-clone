@@ -93,6 +93,7 @@ const VALID_ROUTES = new Set<string>([
   "/logs/configuration/facets",
   "/security/data-security",
   "/security/data-security/findings",
+  "/software",
 ]);
 
 export function isRouteAvailable(href: string | undefined): boolean {
@@ -265,9 +266,10 @@ export const navSections: NavSection[] = [
         },
         {
           heading: "Internal Developer Portal",
+          href: "/software",
           badge: "NEW",
           primary: [
-            { label: "Software Catalog" },
+            { label: "Software Catalog", href: "/software" },
             { label: "Scorecards" },
             { label: "Self-Service Actions" },
           ],
@@ -358,9 +360,9 @@ export const navSections: NavSection[] = [
       flyout: [
         {
           heading: "Software Catalog",
+          href: "/software",
           primary: [
-            { label: "Services", href: "/apm/home" },
-            { label: "Service Map", href: "/apm/service-map" },
+            { label: "Services", href: "/software" },
             { label: "Endpoints" },
             { label: "Scorecards" },
           ],

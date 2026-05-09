@@ -110,7 +110,7 @@ export function AddWidgetsDrawer({ open, onClose, onPickWidget }: Props) {
 
   return (
     <div
-      className="absolute inset-0 z-40 flex"
+      className="absolute inset-0 z-40 flex justify-end"
       aria-hidden={!open}
       style={{ pointerEvents: open ? "auto" : "none" }}
     >
@@ -123,8 +123,8 @@ export function AddWidgetsDrawer({ open, onClose, onPickWidget }: Props) {
         }`}
       />
       <aside
-        className={`relative z-10 flex h-full w-[360px] flex-col border-r border-[#dadce0] bg-white shadow-xl transition-transform duration-200 ease-out ${
-          open ? "translate-x-0" : "-translate-x-full"
+        className={`relative z-10 flex h-full w-[360px] flex-col border-l border-[#dadce0] bg-white shadow-xl transition-transform duration-200 ease-out ${
+          open ? "translate-x-0" : "translate-x-full"
         }`}
         role="dialog"
         aria-label="Add widgets"
@@ -255,13 +255,13 @@ function WidgetSection({
               title={usable ? w.label : `${w.label} (coming soon)`}
               className={`flex flex-col items-center gap-1 rounded-md border border-[#dadce0] p-2 text-center transition-colors ${
                 usable
-                  ? "hover:border-[#1a73e8] hover:bg-[#faf5ff]"
+                  ? "hover:border-[#bdc1c6] hover:bg-[#f8f9fa]"
                   : "opacity-60"
               }`}
             >
               <span
                 className={`flex h-8 w-8 items-center justify-center rounded-md border border-[#dadce0] ${
-                  usable ? "text-[#1a73e8]" : "text-[#9aa0a6]"
+                  usable ? "text-[#632ca6]" : "text-[#9aa0a6]"
                 }`}
               >
                 <Icon size={16} weight="duotone" />

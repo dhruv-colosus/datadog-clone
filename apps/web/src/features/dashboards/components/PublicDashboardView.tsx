@@ -1,7 +1,7 @@
 "use client";
 
 import { CircleNotch, Moon, Sun } from "@phosphor-icons/react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   TimeRangePicker,
   rangeFromPreset,
@@ -12,7 +12,10 @@ import {
   fetchPublicDashboard,
   type DashboardResponse,
 } from "../api";
-import type { ShareTheme } from "../types";
+import { applyTemplateVars } from "../templateVars";
+import type { ShareTheme, Widget } from "../types";
+import { useTemplateVarSelections } from "../useTemplateVarSelections";
+import { TemplateVariableBar } from "./template-vars/TemplateVariableBar";
 import { WidgetView } from "./widget-views";
 
 type Props = {
@@ -103,6 +106,7 @@ export function PublicDashboardView({ dashboardId }: Props) {
   }
 
   const widgets = dashboard.widgets ?? [];
+  const templateVars = dashboard.templateVars ?? [];
   const displayName = share.shareName?.trim() || dashboard.name;
   const tzLabel = formatTzOffset(new Date().getTimezoneOffset());
 
@@ -150,6 +154,18 @@ export function PublicDashboardView({ dashboardId }: Props) {
         </div>
       </header>
 
+      {templateVars.length > 0 && (
+        <div
+          className={`px-6 py-2 ${
+            isDark ? "border-b border-[#1f2937]" : "border-b border-[#dadce0]"
+          }`}
+        >
+          <PublicTemplateVariableRow
+            dashboardId={dashboardId}
+            templateVars={templateVars}
+          />
+        </div>
+      )}
       <main className="flex-1 px-6 py-6">
         {widgets.length === 0 ? (
           <div
@@ -162,33 +178,84 @@ export function PublicDashboardView({ dashboardId }: Props) {
             This shared dashboard has no widgets yet.
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {widgets.map((w) => (
-              <article
-                key={w.id}
-                className={`flex h-[260px] flex-col rounded-md border ${
-                  isDark
-                    ? "border-[#1f2937] bg-[#161a22]"
-                    : "border-[#dadce0] bg-white"
-                }`}
-              >
-                <div
-                  className={`border-b px-3 py-2 text-[13px] font-medium ${
-                    isDark
-                      ? "border-[#1f2937] text-[#e8eaed]"
-                      : "border-[#f1f3f4] text-[#202124]"
-                  }`}
-                >
-                  <span className="truncate">{w.title}</span>
-                </div>
-                <div className="min-h-0 flex-1 px-2 py-2">
-                  <WidgetView widget={w} timeRange={timeRange} />
-                </div>
-              </article>
-            ))}
-          </div>
+          <PublicWidgetsGrid
+            widgets={widgets}
+            timeRange={timeRange}
+            templateVars={templateVars}
+            isDark={isDark}
+          />
         )}
       </main>
+    </div>
+  );
+}
+
+function PublicTemplateVariableRow({
+  dashboardId,
+  templateVars,
+}: {
+  dashboardId: string;
+  templateVars: NonNullable<DashboardResponse["templateVars"]>;
+}) {
+  const { selections, setSelection } = useTemplateVarSelections(templateVars);
+  return (
+    <TemplateVariableBar
+      dashboardId={dashboardId}
+      variables={templateVars}
+      selections={selections}
+      onSelectionChange={setSelection}
+      readOnly
+    />
+  );
+}
+
+function PublicWidgetsGrid({
+  widgets,
+  timeRange,
+  templateVars,
+  isDark,
+}: {
+  widgets: Widget[];
+  timeRange: TimeRange;
+  templateVars: NonNullable<DashboardResponse["templateVars"]>;
+  isDark: boolean;
+}) {
+  const { selections } = useTemplateVarSelections(templateVars);
+  const effectiveWidgets = useMemo<Widget[]>(() => {
+    if (templateVars.length === 0) return widgets;
+    return widgets.map((w) => ({
+      ...w,
+      queries: w.queries.map((q) =>
+        applyTemplateVars(q, templateVars, selections, w.id),
+      ),
+    }));
+  }, [widgets, templateVars, selections]);
+
+  return (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {effectiveWidgets.map((w) => (
+        <article
+          key={w.id}
+          className={`flex h-[260px] flex-col rounded-md border ${
+            isDark
+              ? "border-[#1f2937] bg-[#161a22]"
+              : "border-[#dadce0] bg-white"
+          }`}
+        >
+          <div
+            className={`border-b px-3 py-2 text-[13px] font-medium ${
+              isDark
+                ? "border-[#1f2937] text-[#e8eaed]"
+                : "border-[#f1f3f4] text-[#202124]"
+            }`}
+          >
+            <span className="truncate">{w.title}</span>
+          </div>
+          <div className="min-h-0 flex-1 px-2 py-2">
+            <WidgetView widget={w} timeRange={timeRange} />
+          </div>
+        </article>
+      ))}
     </div>
   );
 }

@@ -7,12 +7,10 @@ import {
   CaretDown,
   ChartLineUp,
   CheckCircle,
-  Gear,
   MagnifyingGlassMinus,
   Pause,
   Plus,
   PushPin,
-  ShareNetwork,
   Square,
   Stack,
   Star,
@@ -28,9 +26,13 @@ import {
 } from "@/components/ui/TimeRangePicker";
 import { fetchDashboard } from "../api";
 import { useDashboardsStore } from "../store";
-import type { Widget, WidgetType } from "../types";
+import { useTemplateVarSelections } from "../useTemplateVarSelections";
+import { DASHBOARD_GRID_COLS, type Widget, type WidgetType } from "../types";
 import { AddWidgetsDrawer } from "./AddWidgetsDrawer";
+import { ConfigureMenu } from "./ConfigureMenu";
+import { ShareDashboardMenu } from "./ShareDashboardMenu";
 import { ShareDashboardModal } from "./ShareDashboardModal";
+import { TemplateVariableBar } from "./template-vars/TemplateVariableBar";
 import { WidgetCard } from "./WidgetCard";
 import { WidgetEditorModal } from "./WidgetEditorModal";
 
@@ -50,6 +52,7 @@ export function DashboardEditor({ dashboardId }: Props) {
   );
   const upsertDashboard = useDashboardsStore((s) => s.upsertDashboard);
   const removeWidget = useDashboardsStore((s) => s.removeWidget);
+  const updateWidget = useDashboardsStore((s) => s.updateWidget);
 
   const [timeRange, setTimeRange] = useState<TimeRange>(() =>
     rangeFromPreset("1h"),
@@ -64,6 +67,11 @@ export function DashboardEditor({ dashboardId }: Props) {
   const [fetchState, setFetchState] = useState<"idle" | "loading" | "missing">(
     "idle",
   );
+
+  // Hooks must run unconditionally — the early-return guard below for a
+  // missing dashboard means anything hook-shaped has to live above it.
+  const templateVars = dashboard?.templateVars ?? [];
+  const { selections, setSelection } = useTemplateVarSelections(templateVars);
 
   // Auto-dismiss the share toast after 8 seconds.
   useEffect(() => {
@@ -148,21 +156,16 @@ export function DashboardEditor({ dashboardId }: Props) {
           </button>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            onClick={() => setShareOpen(true)}
-            active={!!dashboard.share?.public?.enabled}
-          >
-            <ShareNetwork size={12} />
-            Share
-          </Button>
+          <ShareDashboardMenu
+            dashboardId={dashboardId}
+            shareEnabled={!!dashboard.share?.public?.enabled}
+            onShareDashboard={() => setShareOpen(true)}
+          />
           <Button>
             <Stack size={12} />
             Show Overlays
           </Button>
-          <Button>
-            <Gear size={12} />
-            Configure
-          </Button>
+          <ConfigureMenu dashboardId={dashboardId} />
           <div className="flex">
             <Button
               variant="primary"
@@ -184,44 +187,50 @@ export function DashboardEditor({ dashboardId }: Props) {
         </div>
       </header>
 
-      <div className="flex items-center justify-between border-b border-[#dadce0] bg-white px-6 py-2">
-        <Button>
-          <Plus size={12} weight="bold" />
-          Add Variable
-        </Button>
+      <div className="flex items-center justify-between gap-3 border-b border-[#dadce0] bg-white px-6 py-2">
+        <TemplateVariableBar
+          dashboardId={dashboardId}
+          variables={templateVars}
+          selections={selections}
+          onSelectionChange={setSelection}
+        />
         <TimeBar value={timeRange} onChange={setTimeRange} />
       </div>
 
       <main className="flex-1 overflow-auto px-6 py-6">
         {widgets.length === 0 ? (
-          <button
-            type="button"
+          <AddWidgetsTile
+            size="hero"
             onClick={() => setDrawerOpen(true)}
-            className="flex h-[260px] w-full max-w-[760px] flex-col items-center justify-center rounded-md border border-dashed border-[#dadce0] bg-white text-[#1a73e8] transition-colors hover:bg-[#faf5ff]"
-          >
-            <Plus size={28} weight="bold" />
-            <p className="mt-3 flex items-center gap-1 text-[14px]">
-              Add{" "}
-              <span className="inline-flex items-center gap-1 text-[#1a73e8]">
-                <ChartLineUp size={14} weight="bold" /> Widgets
-              </span>{" "}
-              or{" "}
-              <span className="inline-flex items-center gap-1 text-[#1a73e8]">
-                <Square size={14} weight="bold" /> Powerpacks
-              </span>
-            </p>
-          </button>
+          />
         ) : (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {widgets.map((w) => (
-              <WidgetCard
-                key={w.id}
-                widget={w}
-                timeRange={timeRange}
-                onEdit={() => setEditor({ mode: "edit", widget: w })}
-                onDelete={() => removeWidget(dashboardId, w.id)}
-              />
-            ))}
+          <div className="space-y-4">
+            <div
+              className="dashboard-widget-grid grid gap-4"
+              style={{
+                gridTemplateColumns: `repeat(${DASHBOARD_GRID_COLS}, minmax(0, 1fr))`,
+                gridAutoRows: "min-content",
+              }}
+            >
+              {widgets.map((w) => (
+                <WidgetCard
+                  key={w.id}
+                  widget={w}
+                  timeRange={timeRange}
+                  onEdit={() => setEditor({ mode: "edit", widget: w })}
+                  onDelete={() => removeWidget(dashboardId, w.id)}
+                  onResize={(width, height) =>
+                    updateWidget(dashboardId, w.id, { width, height })
+                  }
+                  templateVars={templateVars}
+                  templateVarSelections={selections}
+                />
+              ))}
+            </div>
+            <AddWidgetsTile
+              size="band"
+              onClick={() => setDrawerOpen(true)}
+            />
           </div>
         )}
       </main>
@@ -263,6 +272,36 @@ export function DashboardEditor({ dashboardId }: Props) {
         />
       )}
     </div>
+  );
+}
+
+function AddWidgetsTile({
+  size,
+  onClick,
+}: {
+  size: "hero" | "band";
+  onClick: () => void;
+}) {
+  const sizeClass =
+    size === "hero" ? "h-[260px] max-w-[760px]" : "h-[140px]";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex ${sizeClass} w-full flex-col items-center justify-center rounded-md border border-dashed border-[#dadce0] bg-white text-[#1a73e8] transition-colors hover:bg-[#faf5ff]`}
+    >
+      <Plus size={28} weight="bold" />
+      <p className="mt-3 flex items-center gap-1 text-[14px]">
+        Add{" "}
+        <span className="inline-flex items-center gap-1 text-[#1a73e8]">
+          <ChartLineUp size={14} weight="bold" /> Widgets
+        </span>{" "}
+        or{" "}
+        <span className="inline-flex items-center gap-1 text-[#1a73e8]">
+          <Square size={14} weight="bold" /> Powerpacks
+        </span>
+      </p>
+    </button>
   );
 }
 

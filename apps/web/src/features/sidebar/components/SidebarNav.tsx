@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Fragment } from "react";
+import { Fragment, useCallback, useRef } from "react";
 import { ArrowSquareOut, Plus } from "@phosphor-icons/react";
 import {
   isRouteAvailable,
@@ -12,6 +12,8 @@ import {
   type FlyoutSubItem,
   type NavItem,
 } from "../nav-config";
+
+const FLYOUT_VIEWPORT_MARGIN = 12;
 
 type SidebarNavProps = {
   collapsed: boolean;
@@ -63,6 +65,29 @@ function NavRow({
 }) {
   const Icon = item.icon;
   const available = isRouteAvailable(item.href);
+  const rowRef = useRef<HTMLLIElement>(null);
+  const flyoutRef = useRef<HTMLDivElement>(null);
+
+  const positionFlyout = useCallback(() => {
+    const row = rowRef.current;
+    const flyout = flyoutRef.current;
+    if (!row || !flyout) return;
+
+    flyout.style.top = "0px";
+
+    const rowRect = row.getBoundingClientRect();
+    const flyoutH = flyout.offsetHeight;
+    const viewportH = window.innerHeight;
+
+    const overflow =
+      rowRect.top + flyoutH - (viewportH - FLYOUT_VIEWPORT_MARGIN);
+    if (overflow <= 0) return;
+
+    const minOffset = FLYOUT_VIEWPORT_MARGIN - rowRect.top;
+    const offset = Math.max(-overflow, minOffset);
+    flyout.style.top = `${offset}px`;
+  }, []);
+
   const stateClasses = !available
     ? "text-sidebar-muted/50 cursor-not-allowed hover:bg-[#171920]"
     : active
@@ -106,8 +131,14 @@ function NavRow({
     </>
   );
 
+  const hasFlyout = !!item.flyout && item.flyout.length > 0;
+
   return (
-    <li className="group/row relative">
+    <li
+      ref={rowRef}
+      className="group/row relative"
+      onMouseEnter={hasFlyout ? positionFlyout : undefined}
+    >
       {available ? (
         <Link href={item.href} className={rowClass}>
           {rowContent}
@@ -121,18 +152,23 @@ function NavRow({
           {rowContent}
         </span>
       )}
-      {item.flyout && item.flyout.length > 0 && (
-        <FlyoutPanel groups={item.flyout} />
-      )}
+      {hasFlyout && <FlyoutPanel ref={flyoutRef} groups={item.flyout!} />}
     </li>
   );
 }
 
-function FlyoutPanel({ groups }: { groups: FlyoutGroup[] }) {
+function FlyoutPanel({
+  groups,
+  ref,
+}: {
+  groups: FlyoutGroup[];
+  ref?: React.Ref<HTMLDivElement>;
+}) {
   const pathname = usePathname();
   return (
     <div
-      className="invisible absolute left-full top-0 z-50 max-h-[calc(100vh-1rem)] w-[300px] overflow-y-auto rounded-r-md bg-[#171920] py-3 opacity-0 shadow-2xl shadow-black/40 transition-opacity duration-100 group-hover/row:visible group-hover/row:opacity-100"
+      ref={ref}
+      className="invisible absolute left-full top-0 z-50 max-h-[calc(100vh-1.5rem)] w-[300px] overflow-y-auto rounded-r-md bg-[#171920] py-3 opacity-0 shadow-2xl shadow-black/40 transition-opacity duration-100 group-hover/row:visible group-hover/row:opacity-100"
       role="menu"
     >
       <div className="flex flex-col gap-3">

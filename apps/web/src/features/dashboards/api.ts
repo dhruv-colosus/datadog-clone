@@ -3,6 +3,7 @@ import type {
   DashboardIcon,
   DashboardKind,
   DashboardShareConfig,
+  TemplateVariable,
   Widget,
 } from "./types";
 
@@ -19,7 +20,7 @@ export type CreateDashboardPayload = {
   kind: DashboardKind;
   widgets?: Widget[];
   layout?: unknown[];
-  template_vars?: unknown[];
+  template_vars?: TemplateVariable[];
   tags?: string[];
   share?: DashboardShareConfig;
 };
@@ -28,7 +29,7 @@ export type PatchDashboardPayload = Partial<CreateDashboardPayload>;
 
 export type DashboardResponse = Dashboard & {
   ownerId?: string;
-  templateVars?: unknown[];
+  templateVars?: TemplateVariable[];
 };
 
 async function jsonOrThrow<T>(res: Response, label: string): Promise<T> {
@@ -96,6 +97,15 @@ export async function deleteDashboard(id: string): Promise<void> {
   }
 }
 
+export async function cloneDashboard(id: string): Promise<DashboardResponse> {
+  const res = await fetch(`${dashboardsEndpoints.byId(id)}/clone`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+  });
+  return jsonOrThrow<DashboardResponse>(res, `POST /dashboards/${id}/clone`);
+}
+
 export function responseToDashboard(r: DashboardResponse): Dashboard {
   return {
     id: r.id,
@@ -109,6 +119,7 @@ export function responseToDashboard(r: DashboardResponse): Dashboard {
     teams: [],
     widgets: r.widgets ?? [],
     share: r.share,
+    templateVars: r.templateVars ?? [],
   };
 }
 

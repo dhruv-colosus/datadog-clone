@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import Iterator
 
 from app.core.config import get_settings
+from app.telemetry.generators.traces import trace_ids_for_tick
 from app.telemetry.rng import daily_sine, lognormal_ms, seeded_rng
 from app.telemetry.topology import (
     HOSTS,
@@ -170,37 +171,56 @@ def _fill_template(
     return message, attrs
 
 
-# Width of the trace-pool window. A pool is a small set of trace IDs that all
-# log lines in the window draw from. Larger windows = more lines per trace,
-# but coarser timestamps. 30s gives realistic-feeling multi-line transactions.
-_TRACE_POOL_WINDOW_S = 30
+# Cap on distinct trace IDs log lines in a window draw from. Sampling a
+# subset (rather than every trace the spans generator emits) keeps each
+# referenced trace covered by multiple log lines — that's what makes the
+# "transaction" view show several entries per trace instead of one.
 _TRACE_POOL_SIZE = 12
+# Pool spans a window of ticks so a single trace gets log lines scattered
+# over a realistic ~30s request lifetime. The window-aligned key keeps the
+# sample stable across all ticks in the window, so every log in those 30s
+# picks from the same 12 IDs (rather than the sample drifting per-tick).
+_TRACE_POOL_WINDOW_S = 30.0
 
 
-def _trace_pool_for(t_seconds: float) -> list[str]:
-    """Return the active trace IDs for the time window containing t_seconds.
+def _trace_pool_for(t_seconds: float, tick_duration_seconds: float) -> list[str]:
+    """Trace IDs log lines in this tick may reference.
 
-    Lines that get a trace_id pick from this pool, so each trace ends up
-    spanning multiple log lines (and often multiple services) within a
-    ~30s request window — like a real transaction in production.
-
-    Deterministic per window so re-running the same tick produces identical
-    output.
+    Drawn from the spans generator's output for this tick and recent past
+    ticks — so every trace_id stamped on a log line corresponds to a trace
+    that actually exists in the `spans` table. Without this, log → trace
+    navigation 404s on every click because the two generators used
+    independent RNG streams.
     """
+    tick_dur = max(0.1, tick_duration_seconds)
     window = int(t_seconds // _TRACE_POOL_WINDOW_S)
-    rng = seeded_rng("trace_pool", window)
-    return [
-        f"{rng.getrandbits(64):016x}{rng.getrandbits(64):016x}"
-        for _ in range(_TRACE_POOL_SIZE)
-    ]
+    window_start = window * _TRACE_POOL_WINDOW_S
+    n_ticks = max(1, int(_TRACE_POOL_WINDOW_S / tick_dur))
+    all_ids: list[str] = []
+    for k in range(n_ticks):
+        all_ids.extend(
+            trace_ids_for_tick(window_start + k * tick_dur, tick_dur)
+        )
+    if len(all_ids) <= _TRACE_POOL_SIZE:
+        return all_ids
+    rng = seeded_rng("log_trace_subset", window)
+    return rng.sample(all_ids, _TRACE_POOL_SIZE)
 
 
-def iter_lines_for_tick(t_seconds: float) -> Iterator[LogLine]:
-    """Yield log lines for every service for the given tick."""
+def iter_lines_for_tick(
+    t_seconds: float, tick_duration_seconds: float = 5.0,
+) -> Iterator[LogLine]:
+    """Yield log lines for every service for the given tick.
+
+    `tick_duration_seconds` must match what `iter_spans_for_tick` is called
+    with for the same tick — both feed the trace-ID pool, and a mismatch
+    would make logs reference traces the spans generator didn't actually
+    emit.
+    """
     sine = daily_sine(t_seconds)  # in [-1, 1]
     rate_scale = 0.7 + 0.6 * (sine + 1) / 2  # 0.7..1.3
     rate_factor = get_settings().log_rate_factor
-    trace_pool = _trace_pool_for(t_seconds)
+    trace_pool = _trace_pool_for(t_seconds, tick_duration_seconds)
     for service in SERVICE_NAMES:
         base_rate = _BASE_RATE_PER_TICK.get(service, 5.0) * rate_scale * rate_factor
         # Poisson sampling
@@ -219,7 +239,7 @@ def iter_lines_for_tick(t_seconds: float) -> Iterator[LogLine]:
             # Picking from a small per-window pool means a single trace gets
             # several log lines spanning the request, instead of one line per
             # trace (which made the transactions view show "1 logs" forever).
-            include_trace = (
+            include_trace = trace_pool and (
                 (template.level == "error" and entry_rng.random() < 0.7)
                 or (template.level != "error" and entry_rng.random() < 0.25)
             )

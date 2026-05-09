@@ -7,6 +7,7 @@ import type {
   Dashboard,
   DashboardKind,
   DashboardShareSettings,
+  TemplateVariable,
   Widget,
 } from "./types";
 
@@ -42,6 +43,13 @@ type DashboardsState = {
     patch: Partial<Widget>,
   ) => void;
   removeWidget: (dashboardId: string, widgetId: string) => void;
+  addTemplateVar: (dashboardId: string, variable: TemplateVariable) => void;
+  updateTemplateVar: (
+    dashboardId: string,
+    variableId: string,
+    patch: Partial<TemplateVariable>,
+  ) => void;
+  removeTemplateVar: (dashboardId: string, variableId: string) => void;
   setPublicShare: (id: string, settings: DashboardShareSettings) => void;
   disablePublicShare: (id: string) => void;
   setServerId: (id: string, serverId: string) => void;
@@ -126,6 +134,46 @@ export const useDashboardsStore = create<DashboardsState>()(
               : d,
           ),
         })),
+      addTemplateVar: (dashboardId, variable) =>
+        set((s) => ({
+          dashboards: s.dashboards.map((d) =>
+            d.id === dashboardId
+              ? {
+                  ...d,
+                  modifiedMs: Date.now(),
+                  templateVars: [...(d.templateVars ?? []), variable],
+                }
+              : d,
+          ),
+        })),
+      updateTemplateVar: (dashboardId, variableId, patch) =>
+        set((s) => ({
+          dashboards: s.dashboards.map((d) =>
+            d.id === dashboardId
+              ? {
+                  ...d,
+                  modifiedMs: Date.now(),
+                  templateVars: (d.templateVars ?? []).map((v) =>
+                    v.id === variableId ? { ...v, ...patch } : v,
+                  ),
+                }
+              : d,
+          ),
+        })),
+      removeTemplateVar: (dashboardId, variableId) =>
+        set((s) => ({
+          dashboards: s.dashboards.map((d) =>
+            d.id === dashboardId
+              ? {
+                  ...d,
+                  modifiedMs: Date.now(),
+                  templateVars: (d.templateVars ?? []).filter(
+                    (v) => v.id !== variableId,
+                  ),
+                }
+              : d,
+          ),
+        })),
       setPublicShare: (id, settings) =>
         set((s) => ({
           dashboards: s.dashboards.map((d) =>
@@ -157,7 +205,7 @@ export const useDashboardsStore = create<DashboardsState>()(
           ),
         })),
     }),
-    { name: "datadog-clone:dashboards:v3" },
+    { name: "datadog-clone:dashboards:v4" },
   ),
 );
 

@@ -27,20 +27,43 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   createPipeline,
   deletePipeline,
   getLogSettings,
+  listPipelineLibrary,
   listPipelines,
   patchLogSettings,
   reorderPipelines,
   updatePipeline,
 } from "../api";
-import type { LogPipeline } from "../types";
+import type { LogPipeline, ProcessorType } from "../types";
 
 type EnabledFilter = "all" | "enabled" | "disabled";
 type TypeFilter = "all" | "integration" | "custom";
+type RecencyFilter = "all" | "1h" | "24h" | "7d" | "30d";
+type EditorFilter = "all" | "you" | "datadog";
+type ContainsFilter = "all" | ProcessorType | "none";
+
+const PROCESSOR_LABELS: Record<ProcessorType, string> = {
+  "grok-parser": "Grok parser",
+  "date-remapper": "Date remapper",
+  "status-remapper": "Status remapper",
+  "service-remapper": "Service remapper",
+  "message-remapper": "Message remapper",
+  "attribute-remapper": "Attribute remapper",
+  "url-parser": "URL parser",
+  "category-processor": "Category processor",
+  "trace-id-remapper": "Trace ID remapper",
+};
+
+const RECENCY_MS: Record<Exclude<RecencyFilter, "all">, number> = {
+  "1h": 60 * 60 * 1000,
+  "24h": 24 * 60 * 60 * 1000,
+  "7d": 7 * 24 * 60 * 60 * 1000,
+  "30d": 30 * 24 * 60 * 60 * 1000,
+};
 
 export function PipelinesPage() {
   const router = useRouter();
@@ -105,8 +128,13 @@ export function PipelinesPage() {
   const [search, setSearch] = useState("");
   const [enabledFilter, setEnabledFilter] = useState<EnabledFilter>("all");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+  const [recencyFilter, setRecencyFilter] = useState<RecencyFilter>("all");
+  const [editorFilter, setEditorFilter] = useState<EditorFilter>("all");
+  const [containsFilter, setContainsFilter] = useState<ContainsFilter>("all");
   const [pipelinesOpen, setPipelinesOpen] = useState(true);
   const [archivingOpen, setArchivingOpen] = useState(true);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const orderedPipelines = useMemo(() => {
     return order
@@ -114,21 +142,70 @@ export function PipelinesPage() {
       .filter((p): p is LogPipeline => !!p);
   }, [order, pipelines]);
 
+  const containsOptions = useMemo(() => {
+    const seen = new Set<ProcessorType>();
+    for (const p of orderedPipelines) {
+      for (const proc of p.processors) {
+        seen.add(proc.type);
+      }
+    }
+    return Array.from(seen);
+  }, [orderedPipelines]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
+    const now = Date.now();
     return orderedPipelines.filter((p) => {
-      if (
-        enabledFilter === "enabled" && !p.enabled
-      ) return false;
+      if (enabledFilter === "enabled" && !p.enabled) return false;
       if (enabledFilter === "disabled" && p.enabled) return false;
       if (typeFilter === "integration" && !p.isIntegration) return false;
       if (typeFilter === "custom" && p.isIntegration) return false;
+      if (recencyFilter !== "all") {
+        const window = RECENCY_MS[recencyFilter];
+        if (now - p.updatedMs > window) return false;
+      }
+      if (editorFilter !== "all") {
+        const editor = p.isIntegration ? "datadog" : "you";
+        if (editor !== editorFilter) return false;
+      }
+      if (containsFilter !== "all") {
+        if (containsFilter === "none") {
+          if (p.processors.length > 0) return false;
+        } else if (!p.processors.some((proc) => proc.type === containsFilter)) {
+          return false;
+        }
+      }
       if (q && !p.name.toLowerCase().includes(q) && !p.filterQuery.toLowerCase().includes(q)) {
         return false;
       }
       return true;
     });
-  }, [orderedPipelines, search, enabledFilter, typeFilter]);
+  }, [
+    orderedPipelines,
+    search,
+    enabledFilter,
+    typeFilter,
+    recencyFilter,
+    editorFilter,
+    containsFilter,
+  ]);
+
+  const filtersActive =
+    !!search.trim() ||
+    enabledFilter !== "all" ||
+    typeFilter !== "all" ||
+    recencyFilter !== "all" ||
+    editorFilter !== "all" ||
+    containsFilter !== "all";
+
+  const resetFilters = () => {
+    setSearch("");
+    setEnabledFilter("all");
+    setTypeFilter("all");
+    setRecencyFilter("all");
+    setEditorFilter("all");
+    setContainsFilter("all");
+  };
 
   const activeCount = orderedPipelines.filter((p) => p.enabled).length;
   const disabledCount = orderedPipelines.length - activeCount;
@@ -161,6 +238,7 @@ export function PipelinesPage() {
         <div className="flex items-center gap-2">
           <button
             type="button"
+            onClick={() => searchRef.current?.focus()}
             className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#dadce0] bg-white px-3 text-[12.5px] text-[#202124] hover:bg-[#f1f3f4]"
           >
             <MagnifyingGlass size={13} weight="bold" />
@@ -169,7 +247,7 @@ export function PipelinesPage() {
           <button
             type="button"
             className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#dadce0] bg-white px-3 text-[12.5px] text-[#202124] hover:bg-[#f1f3f4]"
-            onClick={() => router.push("/logs/pipelines/library")}
+            onClick={() => setLibraryOpen(true)}
           >
             <Stack size={13} weight="bold" />
             Browse Pipeline Library
@@ -195,6 +273,7 @@ export function PipelinesPage() {
             className="absolute left-3 top-1/2 -translate-y-1/2 text-[#80868b]"
           />
           <input
+            ref={searchRef}
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -230,32 +309,48 @@ export function PipelinesPage() {
           />
           <SelectFilter
             label="Time of last edit"
-            value="all"
-            onChange={() => {}}
-            options={[{ value: "all", label: "All" }]}
-            disabled
+            value={recencyFilter}
+            onChange={(v) => setRecencyFilter(v as RecencyFilter)}
+            options={[
+              { value: "all", label: "Any time" },
+              { value: "1h", label: "Last hour" },
+              { value: "24h", label: "Last 24 hours" },
+              { value: "7d", label: "Last 7 days" },
+              { value: "30d", label: "Last 30 days" },
+            ]}
           />
           <SelectFilter
             label="User who last edited"
-            value="all"
-            onChange={() => {}}
-            options={[{ value: "all", label: "All" }]}
-            disabled
+            value={editorFilter}
+            onChange={(v) => setEditorFilter(v as EditorFilter)}
+            options={[
+              { value: "all", label: "All" },
+              { value: "you", label: "You" },
+              { value: "datadog", label: "Datadog" },
+            ]}
           />
           <SelectFilter
             label="Contains"
-            value="all"
-            onChange={() => {}}
-            options={[{ value: "all", label: "All" }]}
-            disabled
+            value={containsFilter}
+            onChange={(v) => setContainsFilter(v as ContainsFilter)}
+            options={[
+              { value: "all", label: "Any processor" },
+              { value: "none", label: "No processors" },
+              ...containsOptions.map((t) => ({
+                value: t,
+                label: PROCESSOR_LABELS[t],
+              })),
+            ]}
           />
-          <button
-            type="button"
-            className="inline-flex h-9 items-center gap-1 rounded-md border border-dashed border-[#bdc1c6] bg-white px-3 text-[12.5px] text-[#5f6368] hover:bg-[#f1f3f4]"
-          >
-            <Plus size={11} weight="bold" />
-            Add Filter
-          </button>
+          {filtersActive && (
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="inline-flex h-9 items-center gap-1 rounded-md border border-[#bdc1c6] bg-white px-3 text-[12.5px] text-[#5f6368] hover:bg-[#f1f3f4]"
+            >
+              Clear filters
+            </button>
+          )}
         </div>
 
         {/* Flow card */}
@@ -573,6 +668,18 @@ export function PipelinesPage() {
           </div>
         </div>
       </div>
+
+      {libraryOpen && (
+        <PipelineLibraryDialog
+          onClose={() => setLibraryOpen(false)}
+          nextOrderIndex={order.length}
+          onCreated={(p) => {
+            setLibraryOpen(false);
+            qc.invalidateQueries({ queryKey: ["log-pipelines"] });
+            router.push(`/logs/pipelines/${p.id}`);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -696,5 +803,144 @@ function SelectFilter({
         />
       </div>
     </label>
+  );
+}
+
+function PipelineLibraryDialog({
+  onClose,
+  nextOrderIndex,
+  onCreated,
+}: {
+  onClose: () => void;
+  nextOrderIndex: number;
+  onCreated: (pipeline: LogPipeline) => void;
+}) {
+  const { data: library, isLoading } = useQuery({
+    queryKey: ["log-pipelines-library"],
+    queryFn: listPipelineLibrary,
+  });
+  const [search, setSearch] = useState("");
+  const [pendingId, setPendingId] = useState<string | null>(null);
+
+  const create = useMutation({
+    mutationFn: (item: { name: string; integration: string }) =>
+      createPipeline({
+        name: item.name,
+        filter_query: `source:${item.integration}`,
+        processors: [],
+        order_index: nextOrderIndex,
+      }),
+    onSuccess: (p) => onCreated(p),
+    onSettled: () => setPendingId(null),
+  });
+
+  const filtered = useMemo(() => {
+    if (!library) return [];
+    const q = search.trim().toLowerCase();
+    if (!q) return library;
+    return library.filter(
+      (l) =>
+        l.name.toLowerCase().includes(q) ||
+        l.integration.toLowerCase().includes(q) ||
+        l.description.toLowerCase().includes(q),
+    );
+  }, [library, search]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-label="Pipeline Library"
+        className="w-[680px] max-h-[80vh] overflow-hidden rounded-lg border border-[#dadce0] bg-white shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-[#dadce0] px-5 py-3">
+          <div>
+            <h3 className="text-[15px] font-semibold text-[#202124]">
+              Pipeline Library
+            </h3>
+            <p className="mt-0.5 text-[12px] text-[#5f6368]">
+              Pre-built pipelines for popular integrations
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-[12.5px] text-[#5f6368] hover:text-[#202124]"
+          >
+            Close
+          </button>
+        </div>
+        <div className="border-b border-[#e6e7ea] px-5 py-3">
+          <div className="relative">
+            <MagnifyingGlass
+              size={13}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-[#80868b]"
+            />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              autoFocus
+              placeholder="Search the library"
+              className="h-8 w-full rounded-md border border-[#dadce0] bg-white pl-8 pr-3 text-[12.5px] outline-none focus:border-[#774aa4]"
+            />
+          </div>
+        </div>
+        <ul className="max-h-[440px] overflow-y-auto">
+          {isLoading && (
+            <li className="px-5 py-6 text-[12.5px] text-[#5f6368]">
+              Loading library…
+            </li>
+          )}
+          {!isLoading && filtered.length === 0 && (
+            <li className="px-5 py-6 text-center text-[12.5px] text-[#5f6368]">
+              No library entries match.
+            </li>
+          )}
+          {filtered.map((item) => {
+            const id = `${item.integration}:${item.name}`;
+            const busy = pendingId === id && create.isPending;
+            return (
+              <li
+                key={id}
+                className="flex items-start gap-3 border-b border-[#f1f3f4] px-5 py-3 last:border-b-0"
+              >
+                <PuzzlePiece
+                  size={16}
+                  weight="duotone"
+                  className="mt-0.5 shrink-0 text-[#774aa4]"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="text-[13px] font-medium text-[#202124]">
+                    {item.name}
+                  </div>
+                  <div className="mt-0.5 text-[12px] text-[#5f6368]">
+                    {item.description}
+                  </div>
+                  <div className="mt-1 inline-flex items-center gap-1 rounded bg-[#f1f3f4] px-1.5 py-0.5 font-mono text-[10.5px] text-[#5f6368]">
+                    source:{item.integration}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  disabled={busy || create.isPending}
+                  onClick={() => {
+                    setPendingId(id);
+                    create.mutate(item);
+                  }}
+                  className="shrink-0 rounded-md bg-[#774aa4] px-3 py-1.5 text-[12px] font-medium text-white hover:bg-[#603981] disabled:opacity-60"
+                >
+                  {busy ? "Adding…" : "Add"}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </div>
   );
 }

@@ -119,8 +119,19 @@ export type Widget = {
   queries: WidgetQuery[];
   display?: TimeseriesDisplay;
   config?: WidgetConfig;
+  /** Grid column span on a 12-col grid. Defaults to {@link DEFAULT_WIDGET_WIDTH}. */
+  width?: number;
+  /** Pixel height of the widget body+chrome. Defaults to {@link DEFAULT_WIDGET_HEIGHT}. */
+  height?: number;
   createdAt: number;
 };
+
+export const DASHBOARD_GRID_COLS = 12;
+export const DEFAULT_WIDGET_WIDTH = 4;
+export const DEFAULT_WIDGET_HEIGHT = 260;
+export const MIN_WIDGET_WIDTH = 2;
+export const MIN_WIDGET_HEIGHT = 140;
+export const WIDGET_HEIGHT_SNAP = 20;
 
 // ---------- defaults ----------
 
@@ -201,6 +212,51 @@ export type DashboardShareConfig = {
   public?: DashboardShareSettings;
 };
 
+// ---------- template variables ----------
+// Datadog-style dashboard template variables. See
+// https://docs.datadoghq.com/dashboards/template_variables/ for the model.
+//
+// Definitions live on the dashboard (persisted). The currently-selected value
+// for each variable lives only in the URL as `tpl_var_<name>=<value>` so it
+// survives reload/share without ever being saved on the dashboard record.
+
+export type TemplateVariableType = "filter" | "group";
+
+export type TemplateVariable = {
+  id: string;
+  /** Identifier referenced in widget queries as `$<name>`. */
+  name: string;
+  /** Tag key the variable filters/groups by. Often equal to `name`. */
+  tagKey: string;
+  type: TemplateVariableType;
+  /** "*" means "all values" (no filter applied). */
+  defaultValue: string;
+  /** Optional captured value list — when empty the picker fetches live. */
+  availableValues: string[];
+  /** Widget ids the variable applies to. Empty = all widgets. */
+  appliesTo: string[];
+};
+
+export type SavedView = {
+  id: string;
+  name: string;
+  selections: Record<string, string>;
+};
+
+export const TEMPLATE_VAR_WILDCARD = "*";
+
+export function defaultTemplateVariable(tagKey: string): TemplateVariable {
+  return {
+    id: `tv_${Math.random().toString(36).slice(2, 10)}`,
+    name: tagKey,
+    tagKey,
+    type: "filter",
+    defaultValue: TEMPLATE_VAR_WILDCARD,
+    availableValues: [],
+    appliesTo: [],
+  };
+}
+
 export type Dashboard = {
   id: string;
   serverId?: string;
@@ -213,6 +269,8 @@ export type Dashboard = {
   teams: string[];
   widgets?: Widget[];
   share?: DashboardShareConfig;
+  templateVars?: TemplateVariable[];
+  savedViews?: SavedView[];
 };
 
 export type WidgetCategory = "graph" | "group" | "annotation";

@@ -12,7 +12,12 @@ type Props = {
 };
 
 export function SaveToDashboardDialog({ open, onClose }: Props) {
-  const { data: dashboards } = useDashboards();
+  const {
+    data: dashboards,
+    isLoading: dashboardsLoading,
+    error: dashboardsError,
+    refetch: refetchDashboards,
+  } = useDashboards();
   const queries = useExplorerStore((s) => s.queries);
   const formulas = useExplorerStore((s) => s.formulas);
   const visualization = useExplorerStore((s) => s.visualization);
@@ -28,13 +33,22 @@ export function SaveToDashboardDialog({ open, onClose }: Props) {
           ? `${queries[0].aggregator}:${queries[0].metricName}`
           : "New widget",
       );
-      setDashboardId((dashboards ?? [])[0]?.id ?? "");
       saveWidget.reset();
+      refetchDashboards();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, dashboards]);
+  }, [open]);
+
+  useEffect(() => {
+    if (open && dashboards && dashboards.length > 0 && !dashboardId) {
+      setDashboardId(dashboards[0].id);
+    }
+  }, [open, dashboards, dashboardId]);
 
   if (!open) return null;
+
+  const noDashboards = !dashboardsLoading && !dashboardsError &&
+    (dashboards?.length ?? 0) === 0;
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,14 +110,32 @@ export function SaveToDashboardDialog({ open, onClose }: Props) {
               id="dashboard"
               value={dashboardId}
               onChange={(e) => setDashboardId(e.target.value)}
-              className="w-full rounded-md border border-[#bdc1c6] bg-white px-3 py-2 text-[13px] outline-none focus:border-[#1a73e8]"
+              disabled={dashboardsLoading || noDashboards}
+              className="w-full rounded-md border border-[#bdc1c6] bg-white px-3 py-2 text-[13px] outline-none focus:border-[#1a73e8] disabled:bg-[#f1f3f4] disabled:text-[#9aa0a6]"
             >
+              {dashboardsLoading && (
+                <option value="">Loading dashboards…</option>
+              )}
+              {noDashboards && (
+                <option value="">No dashboards available</option>
+              )}
               {(dashboards ?? []).map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.name}
                 </option>
               ))}
             </select>
+            {noDashboards && (
+              <p className="mt-1 text-[12px] text-[#5f6368]">
+                Create a dashboard from the Dashboards page first, then come
+                back here.
+              </p>
+            )}
+            {dashboardsError && (
+              <p className="mt-1 text-[12px] text-red-600">
+                Couldn’t load dashboards: {(dashboardsError as Error).message}
+              </p>
+            )}
           </div>
           <div className="rounded-md bg-[#f8f9fa] p-3 text-[12px] text-[#5f6368]">
             Visualization: <strong>{visualization}</strong> · {queries.length}{" "}
@@ -121,7 +153,12 @@ export function SaveToDashboardDialog({ open, onClose }: Props) {
           <Button
             type="submit"
             variant="primary"
-            disabled={saveWidget.isPending || !dashboardId}
+            disabled={
+              saveWidget.isPending ||
+              !dashboardId ||
+              dashboardsLoading ||
+              noDashboards
+            }
           >
             {saveWidget.isPending ? "Saving…" : "Save"}
           </Button>

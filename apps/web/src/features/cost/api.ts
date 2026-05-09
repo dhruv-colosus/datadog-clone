@@ -86,3 +86,74 @@ export async function getAllocations(
   });
   return jsonOrThrow<CostAllocationsResponse>(res, "GET /cost/allocations");
 }
+
+export type CostType = "amortized" | "blended" | "unblended";
+export type CostRollup = "1d" | "1w" | "1mo";
+
+export type ExplorerQuery = {
+  group_by: string[];
+  days: number;
+  cost_type?: CostType;
+  container_allocated?: boolean;
+  usage_charges_only?: boolean;
+  rollup?: CostRollup;
+  providers?: string[];
+  services?: string[];
+  regions?: string[];
+  accounts?: string[];
+  teams?: string[];
+};
+
+export type ExplorerRow = {
+  key: string;
+  dims: Record<string, string>;
+  totalCost: number;
+  daily: Record<string, number>;
+};
+
+export type ExplorerInsight = {
+  key: string;
+  dims: Record<string, string>;
+  kind: string;
+  headline: string;
+  delta_pct: number;
+};
+
+export type ExplorerResponse = {
+  groupBy: string[];
+  days: number;
+  rangeStart: string;
+  rangeEnd: string;
+  previousRangeStart: string;
+  previousRangeEnd: string;
+  totalCost: number;
+  totalCostPrevious: number;
+  totalCostChange: number;
+  totalCostChangePct: number | null;
+  dayKeys: string[];
+  rows: ExplorerRow[];
+  stackedSeries: Array<Record<string, number | string>>;
+  insights: ExplorerInsight[];
+  rollup: CostRollup;
+  costType: CostType;
+};
+
+export async function queryExplorer(
+  payload: ExplorerQuery,
+): Promise<ExplorerResponse> {
+  const res = await fetch(`${API_URL}/cost/explorer`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return jsonOrThrow<ExplorerResponse>(res, "POST /cost/explorer");
+}
+
+export async function getDimensionValues(dim: string): Promise<string[]> {
+  const res = await fetch(
+    `${API_URL}/cost/dimension-values?dim=${encodeURIComponent(dim)}`,
+    { credentials: "include" },
+  );
+  return jsonOrThrow<string[]>(res, "GET /cost/dimension-values");
+}

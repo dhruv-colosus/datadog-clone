@@ -43,3 +43,15 @@ export function newCellId(): string {
 export function emptyMarkdownCell(): MarkdownCell {
   return { id: newCellId(), kind: "markdown", html: "" };
 }
+
+export type NotebookTemplate = {
+  id: string;
+  name: string;
+  cells: NotebookCell[];
+  templateVars: unknown[];
+  modifiedMs: number;
+  createdMs: number;
+  ownerId?: number;
+  author: NotebookAuthor;
+  kind: "custom";
+};

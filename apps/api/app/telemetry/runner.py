@@ -91,7 +91,7 @@ async def write_tick(
     from app.log_config.runtime import apply_to_log
     log_rows: list[tuple] = []
     pending_findings: list[tuple[str, str, list[dict]]] = []
-    for line in iter_lines_for_tick(t_seconds):
+    for line in iter_lines_for_tick(t_seconds, tick_duration_seconds):
         raw_log = {
             "ts": _seconds_to_dt(line.ts_seconds),
             "service": line.service,

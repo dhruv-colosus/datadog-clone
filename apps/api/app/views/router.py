@@ -27,6 +27,13 @@ class SavedViewCreate(BaseModel):
     team: str | None = None
 
 
+class SavedViewUpdate(BaseModel):
+    name: str | None = None
+    state: dict[str, Any] | None = None
+    team: str | None = None
+    is_default: bool | None = None
+
+
 @router.get("")
 async def list_views(
     kind: str | None = None,
@@ -89,6 +96,52 @@ async def create_view(
         "state": body.state,
         "isDefault": body.is_default,
         "team": body.team,
+    }
+
+
+@router.patch("/{view_id}")
+async def update_view(
+    view_id: str,
+    body: SavedViewUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    sets: list[str] = []
+    params: dict[str, Any] = {"id": view_id, "uid": user.id}
+    if body.name is not None:
+        sets.append("name = :name")
+        params["name"] = body.name
+    if body.state is not None:
+        sets.append("state = CAST(:state AS jsonb)")
+        params["state"] = json.dumps(body.state)
+    if body.team is not None:
+        sets.append("team = :team")
+        params["team"] = body.team
+    if body.is_default is not None:
+        sets.append("is_default = :is_default")
+        params["is_default"] = body.is_default
+
+    if not sets:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    sql = (
+        f"UPDATE saved_views SET {', '.join(sets)} "
+        "WHERE id = :id AND owner_id = :uid "
+        "RETURNING id, kind, name, state, is_default, team"
+    )
+    res = await db.execute(text(sql), params)
+    row = res.first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="View not found")
+    await db.commit()
+    state = row.state if isinstance(row.state, dict) else json.loads(row.state or "{}")
+    return {
+        "id": str(row.id),
+        "kind": row.kind,
+        "name": row.name,
+        "state": state,
+        "isDefault": row.is_default,
+        "team": row.team,
     }
 
 

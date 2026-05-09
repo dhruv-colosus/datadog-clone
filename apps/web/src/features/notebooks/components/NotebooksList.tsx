@@ -18,12 +18,14 @@ import { useAuthStore } from "@/features/auth/store";
 import { notebookSlug } from "../api";
 import {
   useCreateNotebook,
+  useCreateNotebookTemplate,
   useDeleteNotebook,
   useNotebooks,
   usePatchNotebook,
 } from "../hooks";
 import { cellsForTemplate, TEMPLATES, type TemplateKey } from "../templates";
 import type { Notebook } from "../types";
+import { TemplatesPanel } from "./TemplatesPanel";
 
 type SidebarTab =
   | "my"
@@ -91,30 +93,39 @@ export function NotebooksList() {
 
   return (
     <div className="flex h-full flex-col bg-white text-[#202124]">
-      <Header onCreateFromTemplate={onCreateFromTemplate} />
+      <Header
+        onCreateFromTemplate={onCreateFromTemplate}
+        templatesActive={activeTab === "templates"}
+      />
 
       <div className="flex flex-1 overflow-hidden">
         <Sidebar activeTab={activeTab} onSelect={setActiveTab} />
 
         <div className="flex flex-1 flex-col overflow-hidden">
           <div className="flex-1 overflow-auto">
-            <GetStartedPanel
-              onCreate={onCreateFromTemplate}
-              creating={createMut.isPending}
-            />
+            {activeTab === "templates" ? (
+              <TemplatesPanel />
+            ) : (
+              <>
+                <GetStartedPanel
+                  onCreate={onCreateFromTemplate}
+                  creating={createMut.isPending}
+                />
 
-            <div className="px-6 pb-12 pt-2">
-              <h2 className="text-[20px] font-semibold text-[#202124]">
-                {sectionTitle(activeTab)}
-              </h2>
-              <NotebookTable
-                loading={isLoading}
-                notebooks={filtered}
-                onOpen={(n) =>
-                  router.push(`/notebook/${n.id}/${notebookSlug(n.name)}`)
-                }
-              />
-            </div>
+                <div className="px-6 pb-12 pt-2">
+                  <h2 className="text-[20px] font-semibold text-[#202124]">
+                    {sectionTitle(activeTab)}
+                  </h2>
+                  <NotebookTable
+                    loading={isLoading}
+                    notebooks={filtered}
+                    onOpen={(n) =>
+                      router.push(`/notebook/${n.id}/${notebookSlug(n.name)}`)
+                    }
+                  />
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -143,9 +154,17 @@ function sectionTitle(tab: SidebarTab): string {
 
 function Header({
   onCreateFromTemplate,
+  templatesActive,
 }: {
   onCreateFromTemplate: (key: TemplateKey) => void;
+  templatesActive: boolean;
 }) {
+  const router = useRouter();
+  const createTemplateMut = useCreateNotebookTemplate();
+  const handleNewTemplate = async () => {
+    const t = await createTemplateMut.mutateAsync({ name: "", cells: [] });
+    router.push(`/notebook/template/${t.id}`);
+  };
   return (
     <div className="flex items-center justify-between border-b border-[#dadce0] px-6 py-3">
       <div className="flex items-center gap-6">
@@ -158,7 +177,18 @@ function Header({
           <TabLink label="Reports" />
         </nav>
       </div>
-      <NewNotebookMenu onPick={onCreateFromTemplate} />
+      {templatesActive ? (
+        <Button
+          variant="primary"
+          onClick={handleNewTemplate}
+          disabled={createTemplateMut.isPending}
+        >
+          <Plus size={12} weight="bold" />
+          New Template
+        </Button>
+      ) : (
+        <NewNotebookMenu onPick={onCreateFromTemplate} />
+      )}
     </div>
   );
 }

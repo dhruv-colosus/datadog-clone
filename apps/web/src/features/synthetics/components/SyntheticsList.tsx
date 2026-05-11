@@ -1,8 +1,10 @@
 "use client";
 
 import {
+  Browser,
   CaretDown,
   Check,
+  Heartbeat,
   MagnifyingGlass,
   Pause,
   Play,
@@ -184,6 +186,12 @@ function Header() {
           <span className="border-b-2 border-[#006CC2] px-3 py-3 text-[13px] font-medium text-[#202124]">
             Tests
           </span>
+          <Link
+            href="/synthetics/events"
+            className="border-b-2 border-transparent px-3 py-3 text-[13px] font-medium text-[#5f6368] hover:text-[#202124]"
+          >
+            Events
+          </Link>
         </div>
       </div>
       <div className="flex items-center gap-2">
@@ -301,6 +309,7 @@ function TestsTable({
       <thead className="sticky top-0 z-10 bg-[#f8f9fa] text-left text-[12px] font-medium text-[#5f6368]">
         <tr>
           <th className="px-4 py-2 font-medium">Status</th>
+          <th className="px-2 py-2 font-medium">Type</th>
           <th className="px-2 py-2 font-medium">Name</th>
           <th className="px-2 py-2 font-medium">Method</th>
           <th className="px-2 py-2 font-medium">URL</th>
@@ -345,6 +354,19 @@ function TestRow({
         <StatusPill status={test.lastStatus} />
       </td>
       <td className="px-2 py-2">
+        {test.testType === "browser" ? (
+          <span className="inline-flex items-center gap-1 rounded bg-[#f3e8fd] px-1.5 py-0.5 text-[11px] font-medium text-[#632ca6]">
+            <Browser size={12} />
+            Browser
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 rounded bg-[#f3e8fd] px-1.5 py-0.5 text-[11px] font-medium text-[#632ca6]">
+            <Heartbeat size={12} />
+            API
+          </span>
+        )}
+      </td>
+      <td className="px-2 py-2">
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -370,9 +392,13 @@ function TestRow({
         </div>
       </td>
       <td className="px-2 py-2">
-        <span className="rounded bg-[#e8f0fe] px-1.5 py-0.5 font-mono text-[11px] font-medium text-[#1967d2]">
-          {test.method}
-        </span>
+        {test.testType === "browser" ? (
+          <span className="text-[12px] text-[#5f6368]">—</span>
+        ) : (
+          <span className="rounded bg-[#e8f0fe] px-1.5 py-0.5 font-mono text-[11px] font-medium text-[#1967d2]">
+            {test.method}
+          </span>
+        )}
       </td>
       <td className="max-w-[360px] truncate px-2 py-2 font-mono text-[12px] text-[#5f6368]">
         {test.url}

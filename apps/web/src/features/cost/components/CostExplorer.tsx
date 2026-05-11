@@ -20,7 +20,7 @@ import {
   X,
 } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -69,6 +69,38 @@ const PROVIDER_OPTIONS = [
   { id: "aws", label: "AWS" },
   { id: "azure", label: "Azure" },
   { id: "gcp", label: "Google" },
+];
+
+const COST_TYPE_OPTIONS = [
+  { id: "amortized", label: "Amortized" },
+  { id: "blended", label: "Blended" },
+  { id: "unblended", label: "Unblended" },
+];
+
+const ENABLED_OPTIONS = [
+  { id: "enabled", label: "Enabled" },
+  { id: "disabled", label: "Disabled" },
+];
+
+const SERVICE_OPTIONS = [
+  { id: "", label: "All" },
+  { id: "web", label: "web" },
+  { id: "api", label: "api" },
+  { id: "auth", label: "auth" },
+  { id: "payments", label: "payments" },
+  { id: "worker", label: "worker" },
+  { id: "caddy", label: "caddy" },
+  { id: "postgres", label: "postgres" },
+  { id: "redis", label: "redis" },
+];
+
+const TEAM_OPTIONS = [
+  { id: "", label: "All" },
+  { id: "platform", label: "platform" },
+  { id: "web", label: "web" },
+  { id: "infra", label: "infra" },
+  { id: "security", label: "security" },
+  { id: "payments", label: "payments" },
 ];
 
 // Datadog-style color rotation for stacked bars / legend chips.
@@ -127,7 +159,6 @@ function colorFor(idx: number): string {
 }
 
 export function CostExplorer() {
-  const [activeTab, setActiveTab] = useState<string>("explorer");
   const [providers, setProviders] = useState<string[]>(["aws", "azure", "gcp"]);
   const [costType, setCostType] = useState<CostType>("amortized");
   const [containerAllocated, setContainerAllocated] = useState(true);
@@ -195,7 +226,7 @@ export function CostExplorer() {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-[#f6f7f9] text-[#202124]">
-      <TopTabsBar activeTab={activeTab} onChange={setActiveTab} />
+      <TopTabsBar />
       <ViewsBar
         datePreset={datePreset}
         onChangeDatePreset={(id) => setDatePresetId(id)}
@@ -263,35 +294,35 @@ export function CostExplorer() {
 /*  Top tabs row                                                              */
 /* -------------------------------------------------------------------------- */
 
-function TopTabsBar({
-  activeTab,
-  onChange,
-}: {
-  activeTab: string;
-  onChange: (id: string) => void;
-}) {
+function TopTabsBar() {
+  const activeTab = "explorer";
   return (
     <div className="flex items-center gap-1 border-b border-[#e1e3e6] bg-white px-3 pt-1.5">
       <div className="mr-2 flex items-center gap-1.5 px-1.5 text-[14px] text-[#202124]">
         <Cloud size={16} weight="duotone" className="text-[#5f6368]" />
         <span className="font-semibold">Cloud Cost</span>
       </div>
-      {TOP_TABS.map((t) => (
-        <button
-          key={t.id}
-          type="button"
-          onClick={() => onChange(t.id)}
-          className={`flex items-center gap-1 px-3 pb-2 pt-1.5 text-[13px] transition-colors ${
-            activeTab === t.id
-              ? "border-b-2 border-[#774aff] font-medium text-[#202124]"
-              : "border-b-2 border-transparent text-[#5f6368] hover:text-[#202124]"
-          }`}
-          style={{ marginBottom: -1 }}
-        >
-          {t.label}
-          {t.caret && <CaretDown size={10} weight="bold" />}
-        </button>
-      ))}
+      {TOP_TABS.map((t) => {
+        const isActive = t.id === activeTab;
+        return (
+          <button
+            key={t.id}
+            type="button"
+            disabled={!isActive}
+            aria-disabled={!isActive}
+            title={isActive ? undefined : "Tab switching disabled"}
+            className={`flex items-center gap-1 px-3 pb-2 pt-1.5 text-[13px] ${
+              isActive
+                ? "border-b-2 border-[#774aff] font-medium text-[#202124]"
+                : "cursor-not-allowed border-b-2 border-transparent text-[#9aa0a6]"
+            }`}
+            style={{ marginBottom: -1 }}
+          >
+            {t.label}
+            {t.caret && <CaretDown size={10} weight="bold" />}
+          </button>
+        );
+      })}
       <div className="ml-auto flex items-center gap-1 pb-1.5">
         <button
           type="button"
@@ -434,6 +465,7 @@ function ScopeBar({
   onUsageChargesOnlyChange: (next: boolean) => void;
 }) {
   const providerLabel = useMemo(() => {
+    if (providers.length === 0) return "None";
     if (providers.length === 3) return "AWS, Azure, Google";
     return providers
       .map((p) => PROVIDER_OPTIONS.find((o) => o.id === p)?.label ?? p)
@@ -447,33 +479,34 @@ function ScopeBar({
         label="Provider"
         value={providerLabel}
         valueColor="#1a73e8"
-        onClick={() => {
-          // toggle all-vs-aws-only as a quick demo behavior
-          if (providers.length === 3) onProvidersChange(["aws"]);
-          else onProvidersChange(["aws", "azure", "gcp"]);
-        }}
+        options={PROVIDER_OPTIONS}
+        selectedIds={providers}
+        onChange={onProvidersChange}
+        multi
       />
       <FieldSelect
         label="Cost Type"
         value={COST_TYPE_LABELS[costType]}
-        onClick={() => {
-          const order: CostType[] = ["amortized", "blended", "unblended"];
-          const next = order[(order.indexOf(costType) + 1) % order.length];
-          onCostTypeChange(next);
-        }}
+        options={COST_TYPE_OPTIONS}
+        selectedIds={[costType]}
+        onChange={(ids) => onCostTypeChange(ids[0] as CostType)}
       />
       <span className="px-1 text-[12.5px] text-[#5f6368]">with</span>
       <FieldSelect
         label="Container Allocated"
         value={containerAllocated ? "Enabled" : "Disabled"}
         valueColor={containerAllocated ? "#137333" : "#5f6368"}
-        onClick={() => onContainerAllocatedChange(!containerAllocated)}
+        options={ENABLED_OPTIONS}
+        selectedIds={[containerAllocated ? "enabled" : "disabled"]}
+        onChange={(ids) => onContainerAllocatedChange(ids[0] === "enabled")}
       />
       <FieldSelect
         label="Usage Charges Only"
         value={usageChargesOnly ? "Enabled" : "Disabled"}
         valueColor={usageChargesOnly ? "#137333" : "#5f6368"}
-        onClick={() => onUsageChargesOnlyChange(!usageChargesOnly)}
+        options={ENABLED_OPTIONS}
+        selectedIds={[usageChargesOnly ? "enabled" : "disabled"]}
+        onChange={(ids) => onUsageChargesOnlyChange(ids[0] === "enabled")}
       />
       <div className="ml-auto flex items-center gap-1">
         <button
@@ -488,34 +521,100 @@ function ScopeBar({
   );
 }
 
+type FieldOption = { id: string; label: string };
+
 function FieldSelect({
   label,
   value,
   valueColor,
-  onClick,
+  options,
+  selectedIds,
+  onChange,
+  multi,
 }: {
   label: string;
   value: string;
   valueColor?: string;
-  onClick?: () => void;
+  options: FieldOption[];
+  selectedIds: string[];
+  onChange: (next: string[]) => void;
+  multi?: boolean;
 }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const handleSelect = (id: string) => {
+    if (multi) {
+      if (selectedIds.includes(id)) {
+        onChange(selectedIds.filter((x) => x !== id));
+      } else {
+        onChange([...selectedIds, id]);
+      }
+    } else {
+      onChange([id]);
+      setOpen(false);
+    }
+  };
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="group relative flex h-9 min-w-[140px] items-center rounded border border-[#dadce0] bg-white px-2 pb-1 pt-3 text-left hover:border-[#80868b]"
-    >
-      <span className="absolute left-2 top-0 -translate-y-1/2 bg-white px-1 text-[10px] text-[#5f6368]">
-        {label}
-      </span>
-      <span
-        className="flex-1 truncate text-[12.5px]"
-        style={{ color: valueColor ?? "#202124" }}
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="group relative flex h-9 min-w-[140px] items-center rounded border border-[#dadce0] bg-white px-2 pb-1 pt-3 text-left hover:border-[#80868b]"
       >
-        {value}
-      </span>
-      <CaretDown size={10} weight="bold" className="ml-1 text-[#5f6368]" />
-    </button>
+        <span className="absolute left-2 top-0 -translate-y-1/2 bg-white px-1 text-[10px] text-[#5f6368]">
+          {label}
+        </span>
+        <span
+          className="flex-1 truncate text-[12.5px]"
+          style={{ color: valueColor ?? "#202124" }}
+        >
+          {value}
+        </span>
+        <CaretDown size={10} weight="bold" className="ml-1 text-[#5f6368]" />
+      </button>
+      {open && (
+        <div className="absolute left-0 top-10 z-30 min-w-full whitespace-nowrap rounded-md border border-[#dadce0] bg-white py-1 shadow-lg">
+          {options.map((opt) => {
+            const isSelected = selectedIds.includes(opt.id);
+            return (
+              <button
+                key={opt.id || "__all__"}
+                type="button"
+                onClick={() => handleSelect(opt.id)}
+                className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12.5px] hover:bg-[#f1f3f4] ${
+                  isSelected && !multi
+                    ? "bg-[#e8f0fe] text-[#1a73e8]"
+                    : "text-[#202124]"
+                }`}
+              >
+                {multi ? (
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    readOnly
+                    className="accent-[#1a73e8]"
+                  />
+                ) : null}
+                <span>{opt.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -683,22 +782,29 @@ function FilterBar({
   teamFilter: string;
   onTeamFilterChange: (s: string) => void;
 }) {
+  const [service, setService] = useState<string>("");
   return (
     <div className="flex items-center gap-2 border-b border-[#e1e3e6] bg-white px-4 pb-3">
       <FieldSelect
         label="Servicename"
         value={serviceFilter || "All"}
-        onClick={() => onServiceFilterChange(serviceFilter ? "" : "api")}
+        options={SERVICE_OPTIONS}
+        selectedIds={[serviceFilter]}
+        onChange={(ids) => onServiceFilterChange(ids[0] ?? "")}
       />
       <FieldSelect
         label="Service"
-        value="All"
-        onClick={() => {}}
+        value={service || "All"}
+        options={SERVICE_OPTIONS}
+        selectedIds={[service]}
+        onChange={(ids) => setService(ids[0] ?? "")}
       />
       <FieldSelect
         label="Team"
         value={teamFilter || "All"}
-        onClick={() => onTeamFilterChange(teamFilter ? "" : "platform")}
+        options={TEAM_OPTIONS}
+        selectedIds={[teamFilter]}
+        onChange={(ids) => onTeamFilterChange(ids[0] ?? "")}
       />
       <button
         type="button"

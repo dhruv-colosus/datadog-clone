@@ -19,6 +19,9 @@ from app.auth.models import User
 router = APIRouter(prefix="/notebooks", tags=["notebooks"])
 
 
+VALID_ACCESS = {"private", "org"}
+
+
 class NotebookCreate(BaseModel):
     name: str | None = None
     type: str = "investigation"
@@ -26,6 +29,7 @@ class NotebookCreate(BaseModel):
     template_vars: list[Any] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
     favorite: bool = False
+    access: str = "private"
 
 
 class NotebookPatch(BaseModel):
@@ -35,6 +39,7 @@ class NotebookPatch(BaseModel):
     template_vars: list[Any] | None = None
     tags: list[str] | None = None
     favorite: bool | None = None
+    access: str | None = None
 
 
 def _row_to_dict(row) -> dict[str, Any]:
@@ -52,6 +57,7 @@ def _row_to_dict(row) -> dict[str, Any]:
         "templateVars": template_vars,
         "tags": list(row.tags or []),
         "favorite": bool(row.favorite),
+        "access": row.access or "private",
         "modifiedMs": int(row.updated_at.timestamp() * 1000),
         "createdMs": int(row.created_at.timestamp() * 1000),
         "ownerId": row.owner_id,
@@ -65,7 +71,7 @@ def _row_to_dict(row) -> dict[str, Any]:
 _LIST_QUERY = text(
     """
     SELECT n.id, n.owner_id, n.name, n.type,
-           n.cells, n.template_vars, n.tags, n.favorite,
+           n.cells, n.template_vars, n.tags, n.favorite, n.access,
            n.created_at, n.updated_at,
            u.name AS author_name
     FROM notebooks n
@@ -87,7 +93,11 @@ async def list_notebooks(
     db: AsyncSession = Depends(get_db),
 ) -> list[dict[str, Any]]:
     res = await db.execute(
-        text(str(_LIST_QUERY) + " WHERE n.owner_id = :uid ORDER BY n.updated_at DESC"),
+        text(
+            str(_LIST_QUERY)
+            + " WHERE n.owner_id = :uid OR n.access = 'org'"
+            + " ORDER BY n.updated_at DESC"
+        ),
         {"uid": user.id},
     )
     return [_row_to_dict(r) for r in res]
@@ -101,16 +111,17 @@ async def create_notebook(
 ) -> dict[str, Any]:
     new_id = uuid.uuid4()
     name = (body.name or "").strip() or _default_name()
+    access = body.access if body.access in VALID_ACCESS else "private"
     await db.execute(
         text(
             """
             INSERT INTO notebooks (
-                id, owner_id, name, type, cells, template_vars, tags, favorite
+                id, owner_id, name, type, cells, template_vars, tags, favorite, access
             ) VALUES (
                 :id, :owner, :name, :type,
                 CAST(:cells AS jsonb),
                 CAST(:tvars AS jsonb),
-                :tags, :favorite
+                :tags, :favorite, :access
             )
             """
         ),
@@ -123,6 +134,7 @@ async def create_notebook(
             "tvars": json.dumps(body.template_vars),
             "tags": body.tags,
             "favorite": body.favorite,
+            "access": access,
         },
     )
     await db.commit()
@@ -140,7 +152,10 @@ async def get_notebook(
         {"id": notebook_id},
     )
     row = res.first()
-    if row is None or row.owner_id != user.id:
+    if row is None:
+        raise HTTPException(status_code=404, detail="Notebook not found")
+    # Owner always has access; org-shared notebooks are visible to all users.
+    if row.owner_id != user.id and (row.access or "private") != "org":
         raise HTTPException(status_code=404, detail="Notebook not found")
     return _row_to_dict(row)
 
@@ -156,6 +171,13 @@ async def patch_notebook(
     if not fields:
         return await get_notebook(notebook_id, user, db)
 
+    # Reject unknown access values up front rather than silently rewriting.
+    if "access" in fields and fields["access"] not in VALID_ACCESS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"access must be one of {sorted(VALID_ACCESS)}",
+        )
+
     set_parts: list[str] = []
     params: dict[str, Any] = {"id": notebook_id, "uid": user.id}
     for key, val in fields.items():
@@ -169,9 +191,15 @@ async def patch_notebook(
             params[key] = val
             set_parts.append(f"{key} = :{key}")
     set_parts.append("updated_at = NOW()")
+    # Owners can change anything. Non-owners can only edit org-shared notebooks,
+    # and only if they aren't trying to change the access setting itself.
+    if "access" in fields:
+        where_clause = "WHERE id = :id AND owner_id = :uid"
+    else:
+        where_clause = "WHERE id = :id AND (owner_id = :uid OR access = 'org')"
     sql = (
         f"UPDATE notebooks SET {', '.join(set_parts)} "
-        f"WHERE id = :id AND owner_id = :uid RETURNING id"
+        f"{where_clause} RETURNING id"
     )
     res = await db.execute(text(sql), params)
     if res.first() is None:

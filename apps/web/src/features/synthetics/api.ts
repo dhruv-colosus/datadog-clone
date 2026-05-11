@@ -1,10 +1,17 @@
 import type {
+  AlertCondition,
+  AuthConfig,
+  BrowserConfig,
+  DowntimeWindow,
   HttpMethod,
+  RetryConfig,
   Subtype,
   SyntheticAssertion,
+  SyntheticEvent,
   SyntheticRequest,
   SyntheticResult,
   SyntheticTest,
+  TestType,
 } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -15,15 +22,23 @@ export const syntheticsEndpoints = {
   run: (id: string) => `${API_URL}/synthetics/tests/${id}/run`,
   runOnce: `${API_URL}/synthetics/run-once`,
   results: (id: string) => `${API_URL}/synthetics/tests/${id}/results`,
+  events: `${API_URL}/synthetics/events`,
 };
 
 export type CreateSyntheticPayload = {
   name: string;
+  test_type: TestType;
   subtype: Subtype;
   method: HttpMethod;
   url: string;
   request: SyntheticRequest;
   assertions: SyntheticAssertion[];
+  browser_config: BrowserConfig;
+  auth: AuthConfig;
+  retry: RetryConfig;
+  alert_condition: AlertCondition;
+  monitor_message: string;
+  downtimes: DowntimeWindow[];
   locations: string[];
   frequency_seconds: number;
   tags: string[];
@@ -105,10 +120,13 @@ export async function runSyntheticTest(id: string): Promise<SyntheticResult[]> {
 }
 
 export type RunOncePayload = {
+  test_type: TestType;
   method: HttpMethod;
   url: string;
   request: SyntheticRequest;
   assertions: SyntheticAssertion[];
+  browser_config?: BrowserConfig;
+  auth: AuthConfig;
   locations: string[];
 };
 
@@ -130,4 +148,13 @@ export async function listSyntheticResults(
     credentials: "include",
   });
   return jsonOrThrow<SyntheticResult[]>(res, `GET /synthetics/tests/${id}/results`);
+}
+
+export async function listSyntheticEvents(
+  limit = 50,
+): Promise<SyntheticEvent[]> {
+  const res = await fetch(`${syntheticsEndpoints.events}?limit=${limit}`, {
+    credentials: "include",
+  });
+  return jsonOrThrow<SyntheticEvent[]>(res, "GET /synthetics/events");
 }

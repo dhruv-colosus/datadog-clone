@@ -10,6 +10,7 @@ import {
   createSyntheticTest,
   deleteSyntheticTest,
   getSyntheticTest,
+  listSyntheticEvents,
   listSyntheticResults,
   listSyntheticTests,
   patchSyntheticTest,
@@ -25,6 +26,7 @@ const KEYS = {
   list: ["synthetics"] as const,
   byId: (id: string) => ["synthetics", id] as const,
   results: (id: string) => ["synthetics", id, "results"] as const,
+  events: ["synthetics", "events"] as const,
 };
 
 export function useSyntheticTests() {
@@ -49,6 +51,14 @@ export function useSyntheticResults(id: string | undefined, limit = 100) {
     queryKey: id ? KEYS.results(id) : KEYS.list,
     queryFn: () => listSyntheticResults(id!, limit),
     enabled: !!id,
+    refetchInterval: 30_000,
+  });
+}
+
+export function useSyntheticEvents(limit = 50) {
+  return useQuery({
+    queryKey: KEYS.events,
+    queryFn: () => listSyntheticEvents(limit),
     refetchInterval: 30_000,
   });
 }
@@ -102,6 +112,7 @@ export function useRunSyntheticTest(): UseMutationResult<
       qc.invalidateQueries({ queryKey: KEYS.list });
       qc.invalidateQueries({ queryKey: KEYS.byId(id) });
       qc.invalidateQueries({ queryKey: KEYS.results(id) });
+      qc.invalidateQueries({ queryKey: KEYS.events });
     },
   });
 }

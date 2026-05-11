@@ -70,10 +70,12 @@ import {
   emptyMarkdownCell,
   newCellId,
   type MarkdownCell as MarkdownCellModel,
+  type NotebookAccess,
   type NotebookCell,
   type WidgetCell,
 } from "../types";
 import { CellMenu, type AddCellKind } from "./CellMenu";
+import { ManageNotebookAccessModal } from "./ManageNotebookAccessModal";
 import { MarkdownCell } from "./MarkdownCell";
 import { WidgetCellView } from "./WidgetCellView";
 import { downloadNotebookPdf } from "../pdf";
@@ -96,6 +98,11 @@ export function NotebookEditor({ notebookId }: Props) {
   const [cells, setCells] = useState<NotebookCell[]>([]);
   const [name, setName] = useState("");
   const [favorite, setFavorite] = useState(false);
+  const [access, setAccess] = useState<NotebookAccess>("private");
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareSaving, setShareSaving] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
+  const [shareToast, setShareToast] = useState<string | null>(null);
   const [timeRange, setTimeRange] = useState<TimeRange>(() =>
     rangeFromPreset("1h"),
   );
@@ -111,8 +118,19 @@ export function NotebookEditor({ notebookId }: Props) {
     setCells(notebook.cells.length ? notebook.cells : [emptyMarkdownCell()]);
     setName(notebook.name);
     setFavorite(notebook.favorite);
+    setAccess(notebook.access ?? "private");
     setHydrated(true);
   }, [notebook, hydrated]);
+
+  // Keep local access in sync after a successful share-modal save, since
+  // we don't fully re-hydrate from the server response.
+  useEffect(() => {
+    if (!notebook) return;
+    if (notebook.access && notebook.access !== access && !shareOpen) {
+      setAccess(notebook.access);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notebook?.access]);
 
   // Refs mirror current state so the unmount cleanup reads fresh values
   // (a closure over [cells, name, favorite] would capture stale state).
@@ -337,14 +355,63 @@ export function NotebookEditor({ notebookId }: Props) {
     );
   }
 
+  const shareUrl =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/notebook/${notebookId}/${notebookSlug(name)}`
+      : `/notebook/${notebookId}/${notebookSlug(name)}`;
+
+  const handleShareSave = async (next: NotebookAccess) => {
+    if (shareSaving) return;
+    setShareSaving(true);
+    setShareError(null);
+    try {
+      await patchMut.mutateAsync({ access: next });
+      setAccess(next);
+      setShareOpen(false);
+
+      // Auto-copy when switching to org so the user has a link to send.
+      let copied = false;
+      if (next === "org") {
+        try {
+          if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(shareUrl);
+            copied = true;
+          }
+        } catch {
+          // clipboard may be unavailable; the modal also has a copy button.
+        }
+      }
+
+      setShareToast(
+        next === "org"
+          ? copied
+            ? "Notebook shared — link copied to clipboard."
+            : "Notebook shared with your org — everyone can view and edit."
+          : "Notebook set to private — only you have access.",
+      );
+      window.setTimeout(() => setShareToast(null), 3500);
+    } catch (err) {
+      setShareError(
+        err instanceof Error ? err.message : "Failed to update access",
+      );
+    } finally {
+      setShareSaving(false);
+    }
+  };
+
+  const accessLabel =
+    access === "org" ? "Shared with org" : "Private to me";
+
   return (
     <div className="relative flex h-full flex-col bg-white text-[#202124]">
       <Header
         name={name}
         favorite={favorite}
+        access={access}
         timeRange={timeRange}
         onTimeRangeChange={setTimeRange}
         onToggleFavorite={() => setFavorite((v) => !v)}
+        onShare={() => setShareOpen(true)}
         moreOpen={moreOpen}
         onMoreToggle={() => setMoreOpen((v) => !v)}
         onMoreClose={() => setMoreOpen(false)}
@@ -440,7 +507,13 @@ export function NotebookEditor({ notebookId }: Props) {
             <span className="text-[#dadce0]">|</span>
             <span>Updated {relative(notebook.modifiedMs)}</span>
             <span className="text-[#dadce0]">|</span>
-            <span>Unrestricted access</span>
+            <button
+              type="button"
+              onClick={() => setShareOpen(true)}
+              className="text-[#5f6368] hover:text-[#1a73e8] hover:underline"
+            >
+              {accessLabel}
+            </button>
           </div>
 
           <DndContext
@@ -507,6 +580,29 @@ export function NotebookEditor({ notebookId }: Props) {
           handleSaveWidget(widget);
         }}
       />
+
+      <ManageNotebookAccessModal
+        open={shareOpen}
+        current={access}
+        shareUrl={shareUrl}
+        saving={shareSaving}
+        errorMessage={shareError}
+        onClose={() => {
+          if (shareSaving) return;
+          setShareOpen(false);
+          setShareError(null);
+        }}
+        onSave={handleShareSave}
+      />
+
+      {shareToast && (
+        <div
+          role="status"
+          className="pointer-events-none fixed bottom-6 left-1/2 z-[1200] -translate-x-1/2 rounded-md border border-[#a7f3d0] bg-[#ecfdf5] px-4 py-2 text-[13px] text-[#065f46] shadow-md"
+        >
+          {shareToast}
+        </div>
+      )}
     </div>
   );
 }
@@ -588,9 +684,11 @@ function SortableCell({
 function Header({
   name,
   favorite,
+  access,
   timeRange,
   onTimeRangeChange,
   onToggleFavorite,
+  onShare,
   moreOpen,
   onMoreToggle,
   onMoreClose,
@@ -599,9 +697,11 @@ function Header({
 }: {
   name: string;
   favorite: boolean;
+  access: NotebookAccess;
   timeRange: TimeRange;
   onTimeRangeChange: (r: TimeRange) => void;
   onToggleFavorite: () => void;
+  onShare: () => void;
   moreOpen: boolean;
   onMoreToggle: () => void;
   onMoreClose: () => void;
@@ -681,8 +781,12 @@ function Header({
             <CaretDown size={9} weight="bold" />
           </Button>
         </div>
-        <Button variant="primary" className="gap-1.5">
-          <Lock size={12} weight="fill" />
+        <Button variant="primary" className="gap-1.5" onClick={onShare}>
+          {access === "org" ? (
+            <Books size={12} weight="fill" />
+          ) : (
+            <Lock size={12} weight="fill" />
+          )}
           Share
           <LinkIcon size={12} weight="bold" />
         </Button>

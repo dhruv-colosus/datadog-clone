@@ -14,7 +14,10 @@ import uuid
 from typing import Any
 
 from app.db.session import AsyncSessionLocal
-from app.synthetics.executor import execute_with_locations
+from app.synthetics.executor import (
+    execute_browser_with_locations,
+    execute_with_locations,
+)
 from sqlalchemy import text
 
 
@@ -30,7 +33,8 @@ async def _due_tests() -> list[dict[str, Any]]:
         res = await db.execute(
             text(
                 """
-                SELECT id, name, method, url, request, assertions, locations,
+                SELECT id, name, test_type, method, url, request, assertions,
+                       browser_config, auth, locations,
                        frequency_seconds, last_run_at
                 FROM synthetic_tests
                 WHERE enabled = TRUE
@@ -47,6 +51,7 @@ async def _due_tests() -> list[dict[str, Any]]:
                 {
                     "id": str(row.id),
                     "name": row.name,
+                    "testType": row.test_type or "api",
                     "method": row.method,
                     "url": row.url,
                     "request": (
@@ -58,6 +63,16 @@ async def _due_tests() -> list[dict[str, Any]]:
                         row.assertions
                         if isinstance(row.assertions, list)
                         else json.loads(row.assertions or "[]")
+                    ),
+                    "browserConfig": (
+                        row.browser_config
+                        if isinstance(row.browser_config, dict)
+                        else json.loads(row.browser_config or "{}")
+                    ),
+                    "auth": (
+                        row.auth
+                        if isinstance(row.auth, dict)
+                        else json.loads(row.auth or '{"type":"none"}')
                     ),
                     "locations": list(row.locations or []),
                 }
@@ -139,13 +154,24 @@ async def scheduler_loop() -> None:
                 # locations which run in parallel inside execute_with_locations.
                 async def _run_one(t: dict[str, Any]) -> None:
                     try:
-                        results = await execute_with_locations(
-                            method=t["method"],
-                            url=t["url"],
-                            request=t["request"],
-                            assertions=t["assertions"],
-                            locations=t["locations"] or ["aws:us-east-1"],
-                        )
+                        if t.get("testType") == "browser":
+                            bc = t.get("browserConfig") or {}
+                            results = await execute_browser_with_locations(
+                                starting_url=bc.get("startingUrl") or t["url"] or "",
+                                steps=bc.get("steps") or [],
+                                browsers=bc.get("browsers") or ["chrome"],
+                                devices=bc.get("devices") or ["laptop_large"],
+                                locations=t["locations"] or ["aws:us-east-1"],
+                            )
+                        else:
+                            results = await execute_with_locations(
+                                method=t["method"],
+                                url=t["url"],
+                                request=t["request"],
+                                assertions=t["assertions"],
+                                auth=t.get("auth") or {"type": "none"},
+                                locations=t["locations"] or ["aws:us-east-1"],
+                            )
                         await _persist(t["id"], results)
                     except Exception:  # noqa: BLE001
                         logger.exception(

@@ -22,6 +22,8 @@ export type NotebookAuthor = {
   avatarColor: string;
 };
 
+export type NotebookAccess = "private" | "org";
+
 export type Notebook = {
   id: string;
   name: string;
@@ -30,6 +32,7 @@ export type Notebook = {
   templateVars: unknown[];
   tags: string[];
   favorite: boolean;
+  access: NotebookAccess;
   modifiedMs: number;
   createdMs: number;
   ownerId?: number;

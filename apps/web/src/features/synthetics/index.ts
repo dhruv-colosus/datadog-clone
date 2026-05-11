@@ -1,7 +1,10 @@
 export { SyntheticsList } from "./components/SyntheticsList";
 export { NewTestLanding } from "./components/NewTestLanding";
 export { SyntheticTestEditor } from "./components/SyntheticTestEditor";
+export { SyntheticApiTestEditor } from "./components/SyntheticApiTestEditor";
+export { SyntheticBrowserTestEditor } from "./components/SyntheticBrowserTestEditor";
 export { SyntheticTestDetail } from "./components/SyntheticTestDetail";
+export { SyntheticEventsPanel } from "./components/SyntheticEventsPanel";
 export * from "./types";
 export * from "./api";
 export * from "./hooks";

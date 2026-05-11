@@ -647,7 +647,14 @@ function NotebookRow({
         </div>
       </td>
       <td className="px-3 py-2 text-[#5f6368]">
-        <Users size={14} className="text-[#bdc1c6]" />
+        {notebook.access === "org" ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-[#e6f4ea] px-2 py-0.5 text-[11px] font-medium text-[#137333]">
+            <Users size={12} weight="fill" />
+            Org
+          </span>
+        ) : (
+          <Users size={14} className="text-[#bdc1c6]" />
+        )}
       </td>
       <td className="px-3 py-2 text-[#5f6368]">
         <div>{relativeTime(notebook.modifiedMs)}</div>

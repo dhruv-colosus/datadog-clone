@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { ApmFlameSpan } from "../types";
 
-const ROW_H = 22;
-const SERVICE_FILL: Record<string, string> = {
+const ROW_H = 26;
+const ROW_GAP = 4;
+
+export const SERVICE_FILL: Record<string, string> = {
   caddy: "#10b981",
   web: "#a8c5f7",
   api: "#a142f4",
@@ -15,13 +17,27 @@ const SERVICE_FILL: Record<string, string> = {
   redis: "#e8b3a8",
 };
 
+export const FALLBACK_FILL = "#c4a5f7";
+const SERVICE_BORDER_FALLBACK = "#a142f4";
+
 type LaidOutSpan = ApmFlameSpan & {
   depth: number;
   startMs: number;
   endMs: number;
 };
 
-function buildTree(spans: ApmFlameSpan[]): LaidOutSpan[] {
+export function colorForService(service: string): string {
+  return SERVICE_FILL[service] ?? FALLBACK_FILL;
+}
+
+export function formatSpanResource(span: ApmFlameSpan): string {
+  if (!span.httpMethod) return span.resource;
+  const re = new RegExp(`^${span.httpMethod}\\s+`, "i");
+  if (re.test(span.resource)) return span.resource;
+  return `${span.httpMethod} ${span.resource}`;
+}
+
+export function buildTree(spans: ApmFlameSpan[]): LaidOutSpan[] {
   // Group by parent_span_id and walk depth-first so siblings stack horizontally
   // and nested calls indent. Returns spans annotated with their tree depth.
   const byParent = new Map<string | null, ApmFlameSpan[]>();
@@ -72,61 +88,52 @@ function formatLatency(ms: number): string {
   return `${(ms * 1000).toFixed(0)}µs`;
 }
 
+const AXIS_HEIGHT = 26;
+
 export function TraceFlameGraph({
   spans,
   startMs,
   endMs,
+  selectedSpanId,
+  onSelect,
 }: {
   spans: ApmFlameSpan[];
   startMs: number;
   endMs: number;
+  selectedSpanId: string | null;
+  onSelect: (spanId: string | null) => void;
 }) {
   const laidOut = useMemo(() => buildTree(spans), [spans]);
   const totalMs = Math.max(0.001, endMs - startMs);
   const maxDepth = Math.max(0, ...laidOut.map((s) => s.depth));
-  const height = (maxDepth + 1) * (ROW_H + 2) + 40;
-
-  const [selected, setSelected] = useState<string | null>(null);
+  const bodyHeight = (maxDepth + 1) * (ROW_H + ROW_GAP) + 12;
+  const height = AXIS_HEIGHT + bodyHeight;
 
   return (
-    <div className="rounded-lg border border-[#e8eaed] bg-white">
-      <div className="flex items-center justify-between border-b border-[#e8eaed] px-4 py-2 text-[12.5px]">
-        <span className="font-semibold text-[#202124]">Flame graph</span>
-        <span className="text-[#5f6368]">
-          {spans.length} span{spans.length === 1 ? "" : "s"} · {formatLatency(totalMs)}
-        </span>
-      </div>
-
-      <div className="relative overflow-x-auto" style={{ height }}>
-        <div
-          className="relative"
-          style={{ width: "100%", minWidth: 720, height }}
-        >
-          {/* time-grid background */}
-          <Gridlines totalMs={totalMs} />
-          {/* spans */}
+    <div className="relative h-full overflow-x-auto bg-white">
+      <div
+        className="relative"
+        style={{ width: "100%", minWidth: 640, height }}
+      >
+        <Gridlines totalMs={totalMs} bodyHeight={bodyHeight} />
+        <div style={{ position: "absolute", top: AXIS_HEIGHT, left: 0, right: 0, height: bodyHeight }}>
           {laidOut.map((s) => {
             const left = ((s.startMs - startMs) / totalMs) * 100;
-            const widthPct = Math.max(
-              0.2,
-              (s.durationMs / totalMs) * 100,
-            );
-            const top = 8 + s.depth * (ROW_H + 2);
+            const widthPct = Math.max(0.4, (s.durationMs / totalMs) * 100);
+            const top = 6 + s.depth * (ROW_H + ROW_GAP);
+            const isSelected = selectedSpanId === s.spanId;
             const fill =
-              s.status === "error"
-                ? "#fbeae8"
-                : SERVICE_FILL[s.service] ?? "#dadce0";
+              s.status === "error" ? "#fbeae8" : colorForService(s.service);
             const border =
               s.status === "error"
                 ? "#d93025"
-                : SERVICE_FILL[s.service] ?? "#5f6368";
-            const isSelected = selected === s.spanId;
+                : SERVICE_FILL[s.service] ?? SERVICE_BORDER_FALLBACK;
             return (
               <button
                 key={s.spanId}
                 type="button"
                 onClick={() =>
-                  setSelected((prev) => (prev === s.spanId ? null : s.spanId))
+                  onSelect(selectedSpanId === s.spanId ? null : s.spanId)
                 }
                 title={`${s.service} · ${s.resource} · ${formatLatency(s.durationMs)}`}
                 style={{
@@ -136,33 +143,35 @@ export function TraceFlameGraph({
                   top,
                   height: ROW_H,
                   backgroundColor: fill,
-                  borderLeft: `3px solid ${border}`,
-                  borderTop: isSelected ? `1px solid ${border}` : undefined,
-                  borderRight: isSelected ? `1px solid ${border}` : undefined,
-                  borderBottom: isSelected ? `1px solid ${border}` : undefined,
+                  outline: isSelected ? `1.5px solid #202124` : undefined,
+                  outlineOffset: isSelected ? 0 : undefined,
+                  borderRight: `2px solid ${border}`,
                 }}
-                className="overflow-hidden whitespace-nowrap rounded-sm px-1.5 text-left text-[11px] text-[#202124] hover:brightness-95"
+                className="overflow-hidden whitespace-nowrap rounded-[3px] px-1.5 text-left text-[11.5px] font-medium text-[#202124] hover:brightness-95"
               >
-                <span className="font-semibold">{s.service}</span>
-                <span className="text-[#5f6368]"> · {s.resource}</span>
+                <span className="inline-block max-w-full truncate align-bottom">
+                  {formatSpanResource(s)}
+                  <span className="ml-1.5 font-normal text-[#3c4043]">
+                    {formatLatency(s.durationMs)}
+                  </span>
+                </span>
               </button>
             );
           })}
         </div>
       </div>
-
-      {selected && (
-        <SpanInspector
-          span={laidOut.find((s) => s.spanId === selected) ?? null}
-          startMs={startMs}
-        />
-      )}
     </div>
   );
 }
 
-function Gridlines({ totalMs }: { totalMs: number }) {
-  const ticks = 6;
+function Gridlines({
+  totalMs,
+  bodyHeight,
+}: {
+  totalMs: number;
+  bodyHeight: number;
+}) {
+  const ticks = 4; // 0, 50, 100, 150, 200 style spacing - 5 marks
   return (
     <div
       style={{
@@ -174,6 +183,8 @@ function Gridlines({ totalMs }: { totalMs: number }) {
       {Array.from({ length: ticks + 1 }, (_, i) => {
         const left = (i / ticks) * 100;
         const ms = (i / ticks) * totalMs;
+        const isFirst = i === 0;
+        const isLast = i === ticks;
         return (
           <div
             key={i}
@@ -181,7 +192,7 @@ function Gridlines({ totalMs }: { totalMs: number }) {
               position: "absolute",
               left: `${left}%`,
               top: 0,
-              bottom: 0,
+              height: AXIS_HEIGHT + bodyHeight,
               width: 1,
               backgroundColor: "#f1f3f4",
             }}
@@ -189,10 +200,11 @@ function Gridlines({ totalMs }: { totalMs: number }) {
             <span
               style={{
                 position: "absolute",
-                bottom: 4,
-                left: 2,
+                top: 6,
+                left: isLast ? "auto" : isFirst ? 2 : -16,
+                right: isLast ? 2 : "auto",
                 color: "#5f6368",
-                fontSize: 10,
+                fontSize: 10.5,
                 whiteSpace: "nowrap",
               }}
             >
@@ -201,51 +213,6 @@ function Gridlines({ totalMs }: { totalMs: number }) {
           </div>
         );
       })}
-    </div>
-  );
-}
-
-function SpanInspector({
-  span,
-  startMs,
-}: {
-  span: LaidOutSpan | null;
-  startMs: number;
-}) {
-  if (!span) return null;
-  return (
-    <div className="border-t border-[#e8eaed] bg-[#f8f9fb] px-4 py-3 text-[12.5px]">
-      <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 sm:grid-cols-4">
-        <Field label="Service" value={span.service} />
-        <Field label="Operation" value={span.operation} />
-        <Field label="Resource" value={span.resource} />
-        <Field label="Duration" value={formatLatency(span.durationMs)} />
-        <Field label="Status" value={span.status} />
-        <Field
-          label="HTTP"
-          value={
-            span.httpMethod
-              ? `${span.httpMethod} ${span.httpStatus ?? ""}`.trim()
-              : "—"
-          }
-        />
-        <Field label="Host" value={span.host ?? "—"} />
-        <Field
-          label="Offset"
-          value={formatLatency(Math.max(0, span.startMs - startMs))}
-        />
-      </div>
-    </div>
-  );
-}
-
-function Field({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <div className="text-[10px] font-semibold uppercase tracking-wide text-[#5f6368]">
-        {label}
-      </div>
-      <div className="font-mono text-[12px] text-[#202124]">{value}</div>
     </div>
   );
 }

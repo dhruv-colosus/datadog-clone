@@ -1,4 +1,4 @@
-import type { Notebook, NotebookCell } from "./types";
+import type { Notebook, NotebookAccess, NotebookCell } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -14,6 +14,7 @@ export type CreateNotebookPayload = {
   cells?: NotebookCell[];
   tags?: string[];
   favorite?: boolean;
+  access?: NotebookAccess;
 };
 
 export type PatchNotebookPayload = Partial<CreateNotebookPayload>;

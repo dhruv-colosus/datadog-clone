@@ -47,6 +47,12 @@ export type NavItem = {
 
 export type NavSection = NavItem[];
 
+// Nav entries whose `href` is NOT in VALID_ROUTES are rendered as a disabled
+// `<span aria-disabled="true">` by `SidebarNav` (see isRouteAvailable usage
+// at SidebarNav.tsx:67, 142). They are intentional placeholders that mirror
+// the real Datadog sidebar layout for visual parity — they do not navigate
+// and do not 404. Add a route to VALID_ROUTES below as soon as a real page
+// under `apps/web/src/app/` lands for it.
 const VALID_ROUTES = new Set<string>([
   "/",
   "/apm",

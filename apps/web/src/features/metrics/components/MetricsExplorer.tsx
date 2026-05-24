@@ -18,7 +18,10 @@ export function MetricsExplorer() {
   const addFormula = useExplorerStore((s) => s.addFormula);
 
   return (
-    <div className="flex h-full flex-col bg-white text-[#202124]">
+    <div
+      data-testid="metric-explore-page"
+      className="flex h-full flex-col bg-white text-[#202124]"
+    >
       <ExplorerHeader />
       <div className="flex-1 overflow-auto">
         <section className="space-y-1.5 px-4 py-3">

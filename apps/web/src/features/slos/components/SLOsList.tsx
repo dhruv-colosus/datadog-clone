@@ -124,7 +124,10 @@ export function SLOsList() {
     });
 
   return (
-    <div className="flex h-full w-full flex-col bg-white text-[#202124]">
+    <div
+      data-testid="slo-manage-page"
+      className="flex h-full w-full flex-col bg-white text-[#202124]"
+    >
       <Header />
 
       <div className="border-b border-[#dadce0] bg-white px-6 py-2.5">

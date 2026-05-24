@@ -154,7 +154,10 @@ export function WatchdogList() {
   );
 
   return (
-    <div className="flex h-full flex-col bg-[#f8f9fb] text-[#202124]">
+    <div
+      data-testid="watchdog-page"
+      className="flex h-full flex-col bg-[#f8f9fb] text-[#202124]"
+    >
       {!bannerDismissed && (
         <div className="flex items-center gap-3 bg-gradient-to-r from-[#1e88e5] via-[#7c3aed] to-[#c026d3] px-4 py-2 text-white">
           <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/20">

@@ -114,7 +114,10 @@ export function SignalsQueue() {
   };
 
   return (
-    <div className="flex h-full flex-col bg-[#f8f9fb] text-[#202124]">
+    <div
+      data-testid="security-signals-page"
+      className="flex h-full flex-col bg-[#f8f9fb] text-[#202124]"
+    >
       <SectionHeader
         icon={Shield}
         title="Signals"

@@ -74,7 +74,10 @@ export function RumSummaryPage() {
   const viewsChange = summary.data?.viewsChangePct ?? 0;
 
   return (
-    <div className="flex h-full flex-col bg-[#f8f9fb] text-[#202124]">
+    <div
+      data-testid="rum-summary-page"
+      className="flex h-full flex-col bg-[#f8f9fb] text-[#202124]"
+    >
       <RumHeader range={range} />
 
       <div className="flex flex-1 overflow-hidden">

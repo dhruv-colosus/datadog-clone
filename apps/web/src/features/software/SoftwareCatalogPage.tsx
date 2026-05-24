@@ -134,7 +134,10 @@ export function SoftwareCatalogPage() {
   }, [services, serviceMap]);
 
   return (
-    <div className="flex h-full flex-col bg-[#f8f9fb] text-[#202124]">
+    <div
+      data-testid="software-page"
+      className="flex h-full flex-col bg-[#f8f9fb] text-[#202124]"
+    >
       <IdpHeaderBar />
       <SubHeader />
       <div className="flex flex-1 min-h-0">

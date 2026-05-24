@@ -98,7 +98,10 @@ export function SyntheticsList() {
     });
 
   return (
-    <div className="flex h-full w-full flex-col bg-white text-[#202124]">
+    <div
+      data-testid="synthetics-tests-page"
+      className="flex h-full w-full flex-col bg-white text-[#202124]"
+    >
       <Header />
 
       <div className="border-b border-[#dadce0] bg-white px-6 py-3">

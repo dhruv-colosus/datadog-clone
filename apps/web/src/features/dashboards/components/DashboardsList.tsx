@@ -105,7 +105,10 @@ export function DashboardsList() {
   }, [dashboards, activePreset, search]);
 
   return (
-    <div className="flex h-full flex-col bg-white text-[#202124]">
+    <div
+      data-testid="dashboard-lists-page"
+      className="flex h-full flex-col bg-white text-[#202124]"
+    >
       <Header onNewDashboard={() => setCreateOpen(true)} />
 
       <div className="border-b border-[#dadce0] px-6 py-3">

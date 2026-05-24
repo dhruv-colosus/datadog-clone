@@ -289,7 +289,10 @@ export function MonitorsList() {
     resolveMutation.isPending;
 
   return (
-    <div className="flex h-full w-full flex-col bg-white text-[#202124]">
+    <div
+      data-testid="monitors-manage-page"
+      className="flex h-full w-full flex-col bg-white text-[#202124]"
+    >
       <Header activeTab={activeTab} onTabChange={setActiveTab} />
 
       <LiveMonitoringBanner total={monitors.length} />

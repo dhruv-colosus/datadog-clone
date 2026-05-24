@@ -190,7 +190,10 @@ export function PipelineExecutionsList() {
   };
 
   return (
-    <div className="flex h-full flex-col bg-[#f8f9fb] text-[#202124]">
+    <div
+      data-testid="ci-pipeline-executions-page"
+      className="flex h-full flex-col bg-[#f8f9fb] text-[#202124]"
+    >
       <SectionHeader
         icon={GitBranch}
         title="Pipeline Executions"

@@ -29,7 +29,10 @@ export function ApmHomePage() {
   const setEnv = useApmHomeStore((s) => s.setEnvFilter);
 
   return (
-    <div className="flex h-full flex-col bg-[#f8f9fb] text-[#202124]">
+    <div
+      data-testid="apm-home-page"
+      className="flex h-full flex-col bg-[#f8f9fb] text-[#202124]"
+    >
       <ApmHeader>
         <button
           type="button"

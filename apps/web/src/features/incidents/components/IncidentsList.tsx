@@ -125,7 +125,10 @@ export function IncidentsList() {
   };
 
   return (
-    <div className="flex h-full flex-col bg-[#f8f9fb] text-[#202124]">
+    <div
+      data-testid="incidents-page"
+      className="flex h-full flex-col bg-[#f8f9fb] text-[#202124]"
+    >
       <SectionHeader
         icon={Broadcast}
         title="Incidents"

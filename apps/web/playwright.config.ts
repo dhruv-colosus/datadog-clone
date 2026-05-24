@@ -1,3 +1,8 @@
+// Required by the universal acceptance checklist (§5a). Node's fetch rejects
+// the local CA used by the clone-apps gateway; setting this off lets specs
+// hit https://<app>.clone.test without bundling a CA into the test runner.
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+
 import { defineConfig, devices } from "@playwright/test";
 import path from "path";
 
@@ -15,23 +20,30 @@ export default defineConfig({
   workers: 1,
   reporter: [["list"], ["html", { open: "never" }]],
 
-  globalSetup: "./e2e/global-setup.ts",
-
   use: {
     baseURL: WEB_URL,
-    storageState: "./e2e/.auth/user.json",
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "retain-on-failure",
+    ignoreHTTPSErrors: true,
     extraHTTPHeaders: {
       "x-playwright-test": "1",
     },
   },
 
   projects: [
+    // Bootstrap project — runs first, pre-generates `e2e/.auth/*.json`.
+    {
+      name: "setup",
+      testMatch: /global\.setup\.ts/,
+    },
     {
       name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: "./e2e/.auth/admin.json",
+      },
+      dependencies: ["setup"],
     },
   ],
 

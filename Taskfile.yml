@@ -1,0 +1,147 @@
+version: "3"
+
+# Per-app task surface for the Datadog clone.
+#
+# This Taskfile is the canonical entry-point for day-to-day developer
+# workflows (boot, seed, test, lint, validate). The repo's Makefile is
+# reserved for higher-level pipeline targets (capture/formalize/synthesize/
+# generate/deploy) and remains untouched.
+#
+# Usage:
+#   task --list                 list every task
+#   task datadog:up             one-shot boot + seed
+#   task datadog:test           unit -> e2e
+#   task datadog:validate       repo-structure validator
+
+env:
+  APP_NAME: datadog
+  COMPOSE_PROJECT: datadog-clone
+
+tasks:
+  # ─── Lifecycle ────────────────────────────────────────────────────────
+
+  datadog:up:
+    desc: "Build frontend, start docker compose, wait for /health, run seed."
+    cmds:
+      - bash scripts/start.sh
+
+  datadog:up-no-tls:
+    desc: "Same as up; no caddy sidecar is configured in the current stack."
+    cmds:
+      - bash scripts/start.sh
+
+  datadog:down:
+    desc: "Stop and remove containers + named volumes for the dev stack."
+    cmds:
+      - docker compose down -v --remove-orphans
+
+  datadog:seed:
+    desc: "Seed the running stack (idempotent unless --force is passed)."
+    dir: apps/api
+    cmds:
+      - uv run python -m scripts.seed_db {{.CLI_ARGS}}
+
+  datadog:build:
+    desc: "docker compose build only — no start."
+    cmds:
+      - docker compose build
+
+  datadog:clean:
+    desc: "Down + clear web build artifacts (.next, dist, node_modules cache)."
+    cmds:
+      - docker compose down -v --remove-orphans
+      - rm -rf apps/web/.next apps/web/dist apps/web/test-results apps/web/playwright-report apps/web/blob-report
+      - rm -rf apps/api/.pytest_cache apps/api/.mypy_cache apps/api/.ruff_cache
+
+  datadog:export-deps:
+    desc: "Regenerate apps/api/.requirements.lock from uv.lock."
+    dir: apps/api
+    cmds:
+      - uv export --frozen --no-dev --format requirements-txt -o .requirements.lock
+
+  # ─── Dev loops ────────────────────────────────────────────────────────
+
+  datadog:dev-backend:
+    desc: "Local uvicorn --reload against docker postgres on its host port."
+    dir: apps/api
+    cmds:
+      - uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+  datadog:dev-frontend:
+    desc: "Vite/Next.js hot reload on http://localhost:3000."
+    dir: apps/web
+    cmds:
+      - pnpm dev
+
+  # ─── Tests ────────────────────────────────────────────────────────────
+
+  datadog:test-unit:
+    desc: "pytest the FastAPI backend (apps/api/tests)."
+    dir: apps/api
+    cmds:
+      - uv run pytest tests {{.CLI_ARGS}}
+
+  datadog:test-e2e:
+    desc: "Playwright suite. Requires `task datadog:up && task datadog:seed`."
+    dir: apps/web
+    cmds:
+      - pnpm exec playwright test {{.CLI_ARGS}}
+
+  datadog:test-e2e-install:
+    desc: "Install Playwright browsers + system deps for Chromium."
+    dir: apps/web
+    cmds:
+      - pnpm exec playwright install --with-deps chromium
+
+  datadog:test-e2e-ui:
+    desc: "Playwright UI mode for spec authoring."
+    dir: apps/web
+    cmds:
+      - pnpm exec playwright test --ui
+
+  datadog:test-e2e-report:
+    desc: "Open the last Playwright HTML report."
+    dir: apps/web
+    cmds:
+      - pnpm exec playwright show-report
+
+  datadog:test:
+    desc: "unit -> e2e, in that order."
+    cmds:
+      - task: datadog:test-unit
+      - task: datadog:test-e2e
+
+  # ─── Lint + validate ─────────────────────────────────────────────────
+
+  datadog:lint:
+    desc: "ruff (apps/api) + next lint (apps/web). Non-blocking by convention."
+    cmds:
+      - cd apps/api && uv run ruff check . || true
+      - cd apps/web && pnpm lint || true
+
+  datadog:validate:
+    desc: "Repo-structure validator. Exits zero only if every §1 path exists."
+    cmds:
+      - bash scripts/validate.sh
+
+  # ─── Desktop (Electron shell) ────────────────────────────────────────
+
+  datadog:desktop-dev:
+    desc: "Electron shell against local Vite dev server."
+    dir: apps/desktop
+    cmds:
+      - pnpm dev
+
+  datadog:desktop-start:
+    desc: "Electron shell against the running docker stack."
+    dir: apps/desktop
+    env:
+      DATADOG_DESKTOP_URL: "http://localhost:3001"
+    cmds:
+      - pnpm start
+
+  datadog:desktop:
+    desc: "Package the Electron app via electron-builder."
+    dir: apps/desktop
+    cmds:
+      - pnpm package

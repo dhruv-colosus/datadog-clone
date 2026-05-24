@@ -735,7 +735,7 @@ function LocationsPicker({
     onChange(allSelected ? [] : [...ALL_LOCATION_IDS]);
 
   const toggleRegion = (region: string) => {
-    const ids = grouped[region].map((l) => l.id);
+    const ids: string[] = grouped[region].map((l) => l.id);
     const allOn = ids.every((i) => selected.includes(i));
     if (allOn) onChange(selected.filter((s) => !ids.includes(s)));
     else {

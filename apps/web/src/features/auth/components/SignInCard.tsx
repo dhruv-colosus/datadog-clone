@@ -202,7 +202,12 @@ export function SignInCard() {
 
             <Divider sx={{ borderColor: "rgba(255,255,255,0.15)" }} />
 
-            <Box component="form" onSubmit={handleSubmit} noValidate>
+            <Box
+              component="form"
+              data-testid="login-form"
+              onSubmit={handleSubmit}
+              noValidate
+            >
               <Stack spacing={1.5}>
                 <InputBase
                   type="email"
@@ -211,6 +216,7 @@ export function SignInCard() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  inputProps={{ "data-testid": "login-email" }}
                   sx={darkInputSx}
                 />
                 <InputBase
@@ -220,14 +226,20 @@ export function SignInCard() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  inputProps={{ "data-testid": "login-password" }}
                   sx={darkInputSx}
                 />
-                {loginError && <Alert severity="error">{loginError}</Alert>}
+                {loginError && (
+                  <Alert severity="error" data-testid="login-error">
+                    {loginError}
+                  </Alert>
+                )}
                 <Button
                   type="submit"
                   variant="contained"
                   size="large"
                   disabled={loginMutation.isPending}
+                  data-testid="login-submit"
                   sx={{
                     textTransform: "none",
                     fontWeight: 500,

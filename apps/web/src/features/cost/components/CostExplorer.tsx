@@ -225,7 +225,10 @@ export function CostExplorer() {
   }, [providers]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-[#f6f7f9] text-[#202124]">
+    <div
+      data-testid="cost-explorer-page"
+      className="flex h-full min-h-0 flex-col bg-[#f6f7f9] text-[#202124]"
+    >
       <TopTabsBar />
       <ViewsBar
         datePreset={datePreset}

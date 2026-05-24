@@ -92,7 +92,10 @@ export function NotebooksList() {
   };
 
   return (
-    <div className="flex h-full flex-col bg-white text-[#202124]">
+    <div
+      data-testid="notebook-list-page"
+      className="flex h-full flex-col bg-white text-[#202124]"
+    >
       <Header
         onCreateFromTemplate={onCreateFromTemplate}
         templatesActive={activeTab === "templates"}
